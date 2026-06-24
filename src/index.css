@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: #f1f5f9;
+  font-family: system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+.pace-mono {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Session type border colors */
+.session-ccl  { border-left: 4px solid #22c55e; }
+.session-ccn  { border-left: 4px solid #eab308; }
+.session-ccr  { border-left: 4px solid #ef4444; }
+.session-pista { border-left: 4px solid #a855f7; }
+.session-rest  { border-left: 4px solid #94a3b8; }
