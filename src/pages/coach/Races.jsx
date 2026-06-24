@@ -1,17 +1,29 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { formatDate, formatDistance } from '../../utils/pace'
-import { Plus, Edit2, Trash2, X, Users } from 'lucide-react'
+import { Plus, Edit2, Trash2, X, Users, MapPin } from 'lucide-react'
 import LoadingSpinner from '../../components/LoadingSpinner'
+
+const inputStyle = {
+  background: 'var(--surface2)',
+  border: '1px solid var(--border)',
+  color: 'var(--text)',
+  borderRadius: 10,
+  padding: '10px 14px',
+  fontSize: 14,
+  width: '100%',
+  outline: 'none',
+}
+const labelStyle = {
+  display: 'block', fontSize: 11, fontWeight: 600, textTransform: 'uppercase',
+  letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 5,
+}
 
 function RaceModal({ race, onClose, onSaved }) {
   const isNew = !race
   const [form, setForm] = useState({
-    name: race?.name || '',
-    date: race?.date || '',
-    distance_km: race?.distance_km || '',
-    location: race?.location || '',
-    description: race?.description || '',
+    name: race?.name || '', date: race?.date || '', distance_km: race?.distance_km || '',
+    location: race?.location || '', description: race?.description || '',
     registration_url: race?.registration_url || '',
   })
   const [saving, setSaving] = useState(false)
@@ -30,69 +42,68 @@ function RaceModal({ race, onClose, onSaved }) {
       registration_url: form.registration_url || null,
       location: form.location || null,
     }
-
-    let result
-    if (isNew) {
-      result = await supabase.from('races').insert(payload).select().single()
-    } else {
-      result = await supabase.from('races').update(payload).eq('id', race.id).select().single()
-    }
-
-    if (result.error) {
-      setError('Erro: ' + result.error.message)
-    } else {
-      onSaved(result.data)
-      onClose()
-    }
+    const result = isNew
+      ? await supabase.from('races').insert(payload).select().single()
+      : await supabase.from('races').update(payload).eq('id', race.id).select().single()
+    if (result.error) { setError('Erro: ' + result.error.message) }
+    else { onSaved(result.data); onClose() }
     setSaving(false)
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl">
-        <div className="flex items-center justify-between p-5 border-b border-slate-100">
-          <h3 className="font-bold text-slate-800">{isNew ? 'Nova Corrida' : 'Editar Corrida'}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
+      <div className="w-full max-w-md rounded-2xl shadow-2xl" style={{ background: 'var(--surface)' }}>
+        <div className="flex items-center justify-between p-5" style={{ borderBottom: '1px solid var(--border)' }}>
+          <h3 className="font-black" style={{ color: 'var(--text)' }}>{isNew ? 'Nova Corrida' : 'Editar Corrida'}</h3>
+          <button onClick={onClose} style={{ color: 'var(--text-muted)' }}><X size={20} /></button>
         </div>
-
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Nome</label>
-            <input value={form.name} onChange={e => set('name', e.target.value)} required
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#38bdf8]" />
+            <label style={labelStyle}>Nome</label>
+            <input value={form.name} onChange={e => set('name', e.target.value)} required style={inputStyle}
+              onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Data</label>
-              <input type="date" value={form.date} onChange={e => set('date', e.target.value)} required
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#38bdf8]" />
+              <label style={labelStyle}>Data</label>
+              <input type="date" value={form.date} onChange={e => set('date', e.target.value)} required style={inputStyle}
+                onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Distância (km)</label>
-              <input type="number" step="0.01" min="0.1" value={form.distance_km} onChange={e => set('distance_km', e.target.value)} required
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#38bdf8]" />
+              <label style={labelStyle}>Distância (km)</label>
+              <input type="number" step="0.01" min="0.1" value={form.distance_km}
+                onChange={e => set('distance_km', e.target.value)} required style={inputStyle}
+                onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'} />
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Local</label>
-            <input value={form.location} onChange={e => set('location', e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#38bdf8]" />
+            <label style={labelStyle}>Local</label>
+            <input value={form.location} onChange={e => set('location', e.target.value)} style={inputStyle}
+              onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Descrição</label>
+            <label style={labelStyle}>Descrição</label>
             <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={2}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#38bdf8]" />
+              style={{ ...inputStyle, resize: 'none' }}
+              onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">URL Inscrições</label>
-            <input type="url" value={form.registration_url} onChange={e => set('registration_url', e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#38bdf8]" />
+            <label style={labelStyle}>URL Inscrições</label>
+            <input type="url" value={form.registration_url} onChange={e => set('registration_url', e.target.value)} style={inputStyle}
+              onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
           </div>
-
-          {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
-
+          {error && (
+            <div className="rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(255,69,58,0.12)', color: '#FF453A' }}>{error}</div>
+          )}
           <button type="submit" disabled={saving}
-            className="w-full bg-[#38bdf8] hover:bg-sky-400 text-white font-semibold rounded-lg py-2.5 text-sm transition-colors disabled:opacity-60">
+            className="w-full py-3.5 rounded-xl text-sm font-bold disabled:opacity-50"
+            style={{ background: 'var(--orange)', color: 'white' }}>
             {saving ? 'A guardar...' : 'Guardar'}
           </button>
         </form>
@@ -136,50 +147,73 @@ export default function Races() {
 
   async function handleDelete(race) {
     const { error } = await supabase.from('races').delete().eq('id', race.id)
-    if (!error) {
-      setRaces(prev => prev.filter(r => r.id !== race.id))
-    }
+    if (!error) setRaces(prev => prev.filter(r => r.id !== race.id))
     setDeleting(null)
   }
 
   if (loading) return <LoadingSpinner />
 
+  const today = new Date().toISOString().slice(0, 10)
+
   return (
-    <div className="p-6">
+    <div className="p-6" style={{ background: 'var(--dark)', minHeight: '100vh' }}>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Calendário de Corridas</h2>
-          <p className="text-sm text-slate-500 mt-0.5">{races.length} corridas registadas</p>
+          <h2 className="text-2xl font-black" style={{ color: 'var(--text)' }}>Calendário de Corridas</h2>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{races.length} corridas registadas</p>
         </div>
         <button onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 bg-[#38bdf8] text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-sky-400 transition-colors">
-          <Plus size={18} />
-          Nova Corrida
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold"
+          style={{ background: 'var(--orange)', color: 'white' }}>
+          <Plus size={18} /> Nova Corrida
         </button>
       </div>
 
       <div className="space-y-3">
         {races.map(race => (
-          <div key={race.id} className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="font-semibold text-slate-800">{race.name}</p>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-xs text-slate-500">
-                  <span>{formatDate(race.date)}</span>
-                  {race.location && <span>{race.location}</span>}
-                  <span className="font-bold text-[#38bdf8]">{formatDistance(race.distance_km)} km</span>
+          <div key={race.id} className="rounded-2xl p-4"
+            style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              opacity: race.date < today ? 0.6 : 1,
+            }}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex gap-3 flex-1 min-w-0">
+                {/* Date block */}
+                <div className="w-12 h-12 rounded-xl flex-shrink-0 flex flex-col items-center justify-center"
+                  style={{ background: 'rgba(252,76,2,0.12)', border: '1px solid rgba(252,76,2,0.2)' }}>
+                  <span className="text-xs font-black uppercase" style={{ color: 'var(--orange)' }}>
+                    {new Date(race.date + 'T00:00:00').toLocaleString('pt-PT', { month: 'short' })}
+                  </span>
+                  <span className="text-lg font-black leading-none" style={{ color: 'var(--orange)' }}>
+                    {new Date(race.date + 'T00:00:00').getDate()}
+                  </span>
                 </div>
-                {race.description && <p className="text-xs text-slate-500 mt-1.5">{race.description}</p>}
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-sm" style={{ color: 'var(--text)' }}>{race.name}</p>
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                    {race.location && (
+                      <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                        <MapPin size={11} /> {race.location}
+                      </span>
+                    )}
+                    <span className="text-xs font-bold" style={{ color: 'var(--orange)' }}>
+                      {formatDistance(race.distance_km)} km
+                    </span>
+                    <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                      <Users size={11} /> {confirmCounts[race.id] || 0} confirmados
+                    </span>
+                  </div>
+                  {race.description && (
+                    <p className="text-xs mt-1.5 line-clamp-2" style={{ color: 'var(--text-muted)' }}>{race.description}</p>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1 text-xs text-slate-500">
-                  <Users size={14} />
-                  {confirmCounts[race.id] || 0}
-                </div>
-                <button onClick={() => setEditing(race)} className="text-slate-400 hover:text-slate-600">
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button onClick={() => setEditing(race)} style={{ color: 'var(--text-muted)' }}>
                   <Edit2 size={16} />
                 </button>
-                <button onClick={() => setDeleting(race)} className="text-red-400 hover:text-red-600">
+                <button onClick={() => setDeleting(race)} style={{ color: '#FF453A' }}>
                   <Trash2 size={16} />
                 </button>
               </div>
@@ -187,30 +221,32 @@ export default function Races() {
           </div>
         ))}
         {races.length === 0 && (
-          <div className="text-center py-12 text-slate-400 text-sm">Nenhuma corrida registada.</div>
+          <div className="text-center py-16 text-sm" style={{ color: 'var(--text-muted)' }}>
+            Nenhuma corrida registada.
+          </div>
         )}
       </div>
 
       {(showAdd || editing) && (
-        <RaceModal
-          race={editing}
-          onClose={() => { setShowAdd(false); setEditing(null) }}
-          onSaved={handleSaved}
-        />
+        <RaceModal race={editing} onClose={() => { setShowAdd(false); setEditing(null) }} onSaved={handleSaved} />
       )}
 
       {deleting && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
-            <h3 className="font-bold text-slate-800 mb-2">Apagar corrida?</h3>
-            <p className="text-sm text-slate-600 mb-4">"{deleting.name}" será removida permanentemente.</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
+          <div className="rounded-2xl p-6 max-w-sm w-full shadow-2xl" style={{ background: 'var(--surface)' }}>
+            <h3 className="font-black mb-2" style={{ color: 'var(--text)' }}>Apagar corrida?</h3>
+            <p className="text-sm mb-5" style={{ color: 'var(--text-muted)' }}>
+              "{deleting.name}" será removida permanentemente.
+            </p>
             <div className="flex gap-3">
               <button onClick={() => setDeleting(null)}
-                className="flex-1 border border-slate-300 text-slate-700 rounded-lg py-2 text-sm">
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold"
+                style={{ background: 'var(--surface2)', color: 'var(--text)', border: '1px solid var(--border)' }}>
                 Cancelar
               </button>
               <button onClick={() => handleDelete(deleting)}
-                className="flex-1 bg-red-500 text-white rounded-lg py-2 text-sm font-semibold hover:bg-red-600">
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold"
+                style={{ background: '#FF453A', color: 'white' }}>
                 Apagar
               </button>
             </div>

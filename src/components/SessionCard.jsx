@@ -1,11 +1,9 @@
-import { formatTime } from '../utils/pace'
-
 const TYPE_CONFIG = {
-  CCL:      { label: 'CCL',     border: 'border-l-green-500',  bg: 'bg-green-50',  text: 'text-green-700',  badge: 'bg-green-100 text-green-800' },
-  CCN:      { label: 'CCN',     border: 'border-l-yellow-500', bg: 'bg-yellow-50', text: 'text-yellow-700', badge: 'bg-yellow-100 text-yellow-800' },
-  CCR:      { label: 'CCR',     border: 'border-l-red-500',    bg: 'bg-red-50',    text: 'text-red-700',    badge: 'bg-red-100 text-red-800' },
-  Pista:    { label: 'Pista',   border: 'border-l-purple-500', bg: 'bg-purple-50', text: 'text-purple-700', badge: 'bg-purple-100 text-purple-800' },
-  Descanso: { label: 'Desc.',   border: 'border-l-slate-300',  bg: 'bg-slate-50',  text: 'text-slate-500',  badge: 'bg-slate-100 text-slate-600' },
+  CCL:      { label: 'CCL',   color: 'var(--ccl)',   bg: 'rgba(48,209,88,0.08)',   text: '#30D158' },
+  CCN:      { label: 'CCN',   color: 'var(--ccn)',   bg: 'rgba(255,214,10,0.08)',  text: '#FFD60A' },
+  CCR:      { label: 'CCR',   color: 'var(--ccr)',   bg: 'rgba(255,69,58,0.08)',   text: '#FF453A' },
+  Pista:    { label: 'Pista', color: 'var(--track)', bg: 'rgba(191,90,242,0.08)', text: '#BF5AF2' },
+  Descanso: { label: 'Off',   color: 'var(--rest)',  bg: 'rgba(72,72,74,0.3)',    text: '#8E8E93' },
 }
 
 export default function SessionCard({ session, day }) {
@@ -13,38 +11,57 @@ export default function SessionCard({ session, day }) {
   const cfg = TYPE_CONFIG[session.type] || TYPE_CONFIG['Descanso']
 
   return (
-    <div className={`rounded-lg bg-white border-l-4 ${cfg.border} shadow-sm p-3 mb-2`}>
-      <div className="flex items-center justify-between mb-1">
-        {day && <span className="text-xs font-semibold text-slate-500 uppercase">{day}</span>}
-        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${cfg.badge}`}>
-          {cfg.label}
-        </span>
-      </div>
+    <div className="rounded-xl mb-2 overflow-hidden"
+      style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}>
+      <div className="flex items-stretch">
+        {/* Color bar */}
+        <div className="w-1 flex-shrink-0" style={{ background: cfg.color }} />
 
-      <p className={`text-sm font-medium ${cfg.text}`}>{session.description}</p>
+        <div className="flex-1 p-3">
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-2">
+              {day && (
+                <span className="text-xs font-bold uppercase tracking-wider"
+                  style={{ color: 'var(--text-muted)' }}>{day}</span>
+              )}
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full"
+                style={{ background: cfg.bg, color: cfg.text }}>
+                {cfg.label}
+              </span>
+            </div>
+            {session.distance && (
+              <span className="text-xs font-bold" style={{ color: 'var(--text-muted)' }}>
+                {session.distance} km
+              </span>
+            )}
+          </div>
 
-      {session.distance && (
-        <p className="text-xs text-slate-500 mt-0.5">{session.distance} km</p>
-      )}
+          <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+            {session.description}
+          </p>
 
-      {session.pace && (
-        <p className="pace-mono text-xs text-slate-600 mt-1">
-          Ritmo: <span className="font-semibold">{session.pace}</span>
-        </p>
-      )}
+          {session.pace && (
+            <p className="pace-mono text-xs mt-1.5 font-medium" style={{ color: cfg.text }}>
+              {session.pace}
+            </p>
+          )}
 
-      {session.notes && (
-        <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1 mt-1">{session.notes}</p>
-      )}
+          {session.notes && (
+            <p className="text-xs mt-2 px-2 py-1.5 rounded-lg"
+              style={{ background: 'rgba(255,214,10,0.1)', color: '#FFD60A' }}>
+              ⚠ {session.notes}
+            </p>
+          )}
 
-      {session.strength && (
-        <div className="mt-2 pt-2 border-t border-slate-100">
-          <p className="text-xs font-semibold text-slate-700">{session.strength}</p>
-          {session.strengthNotes && (
-            <p className="text-xs text-amber-700 mt-0.5">{session.strengthNotes}</p>
+          {session.strength && (
+            <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+              <p className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
+                💪 {session.strength}
+              </p>
+            </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   )
 }

@@ -6,10 +6,28 @@
   padding: 0;
 }
 
+:root {
+  --orange: #FC4C02;
+  --orange-light: #FF6B35;
+  --dark: #111114;
+  --surface: #1C1C1E;
+  --surface2: #2C2C2E;
+  --surface3: #3A3A3C;
+  --text: #F5F5F5;
+  --text-muted: #8E8E93;
+  --border: rgba(255,255,255,0.08);
+  --ccl: #30D158;
+  --ccn: #FFD60A;
+  --ccr: #FF453A;
+  --track: #BF5AF2;
+  --rest: #48484A;
+}
+
 body {
-  background-color: #f1f5f9;
-  font-family: system-ui, -apple-system, sans-serif;
+  background-color: var(--dark);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
+  color: var(--text);
 }
 
 #root {
@@ -17,12 +35,50 @@ body {
 }
 
 .pace-mono {
-  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-family: 'SF Mono', ui-monospace, SFMono-Regular, monospace;
+  letter-spacing: -0.02em;
 }
 
-/* Session type border colors */
-.session-ccl  { border-left: 4px solid #22c55e; }
-.session-ccn  { border-left: 4px solid #eab308; }
-.session-ccr  { border-left: 4px solid #ef4444; }
-.session-pista { border-left: 4px solid #a855f7; }
-.session-rest  { border-left: 4px solid #94a3b8; }
+/* Strava-style feed card */
+.feed-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: transform 0.15s ease;
+}
+.feed-card:active { transform: scale(0.99); }
+
+/* Session type accents */
+.session-ccl  { border-left: 3px solid var(--ccl); }
+.session-ccn  { border-left: 3px solid var(--ccn); }
+.session-ccr  { border-left: 3px solid var(--ccr); }
+.session-track { border-left: 3px solid var(--track); }
+.session-rest  { border-left: 3px solid var(--rest); }
+
+/* Metric pill */
+.metric-pill {
+  background: var(--surface2);
+  border-radius: 10px;
+  padding: 8px 12px;
+  text-align: center;
+}
+
+/* Orange button */
+.btn-primary {
+  background: var(--orange);
+  color: white;
+  font-weight: 700;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.btn-primary:hover { background: var(--orange-light); }
+.btn-primary:active { transform: scale(0.98); }
+
+/* Tab underline */
+.tab-active {
+  border-bottom: 2px solid var(--orange);
+  color: var(--orange) !important;
+}

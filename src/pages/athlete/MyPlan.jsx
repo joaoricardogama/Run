@@ -6,14 +6,20 @@ import { formatDate, calculateZones, formatZoneRange } from '../../utils/pace'
 import SessionCard from '../../components/SessionCard'
 import LoadingSpinner from '../../components/LoadingSpinner'
 
-const GROUPS = ['G1', 'G2', 'G3', 'G4', 'G5', 'G6']
 const DAYS_PT = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo']
+
+const ZONE_CONFIG = [
+  { key: 'CCL', label: 'CCL', bg: 'rgba(48,209,88,0.12)', text: '#30D158' },
+  { key: 'CCN', label: 'CCN', bg: 'rgba(255,214,10,0.12)', text: '#FFD60A' },
+  { key: 'CCR', label: 'CCR', bg: 'rgba(255,69,58,0.12)', text: '#FF453A' },
+]
 
 function WeekView({ weekData }) {
   return (
-    <div className="mb-6">
-      <h3 className="font-semibold text-slate-700 mb-3 text-sm">{weekData.label}</h3>
-      <div className="space-y-1">
+    <div className="mb-5">
+      <p className="text-xs font-bold uppercase tracking-widest mb-3 px-1"
+        style={{ color: 'var(--orange)' }}>{weekData.label}</p>
+      <div>
         {weekData.days.map(({ day, session }) => (
           <SessionCard key={day} session={session} day={day} />
         ))}
@@ -33,24 +39,14 @@ export default function MyPlan() {
     if (!athlete) return
     async function load() {
       const [indRes, genRes] = await Promise.all([
-        supabase
-          .from('individual_plans')
-          .select('*')
-          .eq('athlete_id', athlete.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-        supabase
-          .from('general_plans')
-          .select('*')
-          .order('week_start', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
+        supabase.from('individual_plans').select('*').eq('athlete_id', athlete.id)
+          .order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('general_plans').select('*')
+          .order('week_start', { ascending: false }).limit(1).maybeSingle(),
       ])
       if (indRes.data) {
         setIndividualPlan(indRes.data)
-        const plan = generateIndividualPlan(athlete, indRes.data.objective, indRes.data.weeks || 3)
-        setGeneratedPlan(plan)
+        setGeneratedPlan(generateIndividualPlan(athlete, indRes.data.objective, indRes.data.weeks || 3))
       }
       if (genRes.data) setGeneralPlan(genRes.data)
       setLoading(false)
@@ -68,21 +64,23 @@ export default function MyPlan() {
   const zones = prSeconds ? calculateZones(prSeconds, distKm) : null
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-4 pb-24">
-      <h2 className="text-xl font-bold text-slate-800 mb-1">Meu Plano</h2>
+    <div className="max-w-2xl mx-auto px-4 pt-4 pb-28" style={{ background: 'var(--dark)', minHeight: '100vh' }}>
+      <h2 className="text-xl font-black mb-4" style={{ color: 'var(--text)' }}>Meu Plano</h2>
 
-      {individualPlan && zones && (
-        <div className="bg-[#0f172a] text-white rounded-xl p-4 mb-4">
-          <p className="text-xs text-slate-400 mb-2">Objetivo: {individualPlan.objective} · Zonas de ritmo</p>
+      {zones && (
+        <div className="feed-card p-4 mb-5">
+          <p className="text-xs font-semibold uppercase tracking-widest mb-3"
+            style={{ color: 'var(--text-muted)' }}>
+            Objetivo {individualPlan.objective} — Zonas de ritmo
+          </p>
           <div className="grid grid-cols-3 gap-2">
-            {['CCL', 'CCN', 'CCR'].map(z => (
-              <div key={z} className="text-center">
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                  z === 'CCL' ? 'bg-green-800 text-green-200' :
-                  z === 'CCN' ? 'bg-yellow-800 text-yellow-200' :
-                  'bg-red-800 text-red-200'
-                }`}>{z}</span>
-                <p className="pace-mono text-xs text-slate-300 mt-1">{formatZoneRange(zones[z])}</p>
+            {ZONE_CONFIG.map(({ key, label, bg, text }) => (
+              <div key={key} className="rounded-xl p-3 text-center"
+                style={{ background: bg }}>
+                <p className="text-xs font-black mb-1" style={{ color: text }}>{label}</p>
+                <p className="pace-mono text-xs font-medium" style={{ color: 'var(--text)' }}>
+                  {formatZoneRange(zones[key])}
+                </p>
               </div>
             ))}
           </div>
@@ -97,25 +95,34 @@ export default function MyPlan() {
         </div>
       ) : generalPlan ? (
         <div>
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 text-sm text-blue-700">
-            A mostrar o plano do teu grupo ({athlete.group}). O treinador ainda não criou um plano individual.
+          <div className="feed-card p-3 mb-4">
+            <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+              A mostrar o plano do grupo <span style={{ color: 'var(--orange)' }}>{athlete.group}</span>. O treinador ainda não criou um plano individual.
+            </p>
           </div>
-          <p className="text-xs text-slate-500 mb-3">Semana de {formatDate(generalPlan.week_start)}</p>
+          <p className="text-xs mb-3 px-1" style={{ color: 'var(--text-muted)' }}>
+            Semana de {formatDate(generalPlan.week_start)}
+          </p>
           {DAYS_PT.map(day => {
             const sessions = generalPlan.content?.[athlete.group]?.[day.toLowerCase()] || []
             if (sessions.length === 0) return null
             return (
               <div key={day} className="mb-3">
-                <p className="text-xs font-bold text-slate-500 uppercase mb-1">{day}</p>
-                {sessions.map((s, i) => <SessionCard key={i} session={s} />)}
+                {sessions.map((s, i) => <SessionCard key={i} session={s} day={day} />)}
               </div>
             )
           })}
         </div>
       ) : (
-        <div className="text-center py-12 text-slate-400">
-          <p className="font-semibold">Sem plano disponível</p>
-          <p className="text-sm mt-1">Aguarda a publicação do plano pelo treinador.</p>
+        <div className="text-center py-16">
+          <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center"
+            style={{ background: 'var(--surface)' }}>
+            <span className="text-3xl">📋</span>
+          </div>
+          <p className="font-bold" style={{ color: 'var(--text)' }}>Sem plano disponível</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
+            Aguarda a publicação do plano pelo treinador.
+          </p>
         </div>
       )}
     </div>

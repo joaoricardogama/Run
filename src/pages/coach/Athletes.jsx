@@ -1,126 +1,135 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { formatTime, parseTime, formatDate } from '../../utils/pace'
-import { Plus, X, Edit2, UserX, Check } from 'lucide-react'
+import { Plus, X, Edit2 } from 'lucide-react'
 import LoadingSpinner from '../../components/LoadingSpinner'
 
 const GROUPS = ['G1', 'G2', 'G3', 'G4', 'G5', 'G6']
 
+const GROUP_COLORS = {
+  G1: { bg: 'rgba(48,209,88,0.12)',  text: '#30D158' },
+  G2: { bg: 'rgba(10,132,255,0.12)', text: '#0A84FF' },
+  G3: { bg: 'rgba(255,214,10,0.12)', text: '#FFD60A' },
+  G4: { bg: 'rgba(255,159,10,0.12)', text: '#FF9F0A' },
+  G5: { bg: 'rgba(255,69,58,0.12)',  text: '#FF453A' },
+  G6: { bg: 'rgba(191,90,242,0.12)', text: '#BF5AF2' },
+}
+
+const inputStyle = {
+  background: 'var(--surface2)',
+  border: '1px solid var(--border)',
+  color: 'var(--text)',
+  borderRadius: 10,
+  padding: '10px 14px',
+  fontSize: 13,
+  width: '100%',
+  outline: 'none',
+}
+const labelStyle = {
+  display: 'block', fontSize: 11, fontWeight: 600, textTransform: 'uppercase',
+  letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 5,
+}
+
 function AthleteModal({ athlete, onClose, onSaved }) {
   const isNew = !athlete
   const [form, setForm] = useState({
-    name: athlete?.name || '',
-    email: athlete?.email || '',
-    group: athlete?.group || 'G1',
+    name: athlete?.name || '', email: athlete?.email || '', group: athlete?.group || 'G1',
     pr_5km: athlete?.pr_5km ? formatTime(athlete.pr_5km) : '',
     pr_10km: athlete?.pr_10km ? formatTime(athlete.pr_10km) : '',
-    strava_url: athlete?.strava_url || '',
-    notes: athlete?.notes || '',
-    active: athlete?.active ?? true,
+    strava_url: athlete?.strava_url || '', notes: athlete?.notes || '', active: athlete?.active ?? true,
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  function set(field, value) {
-    setForm(prev => ({ ...prev, [field]: value }))
-  }
+  function set(field, value) { setForm(prev => ({ ...prev, [field]: value })) }
 
   async function handleSubmit(e) {
     e.preventDefault()
     setSaving(true)
     setError('')
-
     const pr5 = form.pr_5km ? parseTime(form.pr_5km) : null
     const pr10 = form.pr_10km ? parseTime(form.pr_10km) : null
-
     if (form.pr_5km && !pr5) { setError('PR 5km inválido (MM:SS)'); setSaving(false); return }
     if (form.pr_10km && !pr10) { setError('PR 10km inválido (MM:SS)'); setSaving(false); return }
-
-    const payload = {
-      name: form.name,
-      email: form.email,
-      group: form.group,
-      pr_5km: pr5,
-      pr_10km: pr10,
-      strava_url: form.strava_url || null,
-      notes: form.notes || null,
-      active: form.active,
-    }
-
-    let result
-    if (isNew) {
-      result = await supabase.from('athletes').insert(payload).select().single()
-    } else {
-      result = await supabase.from('athletes').update(payload).eq('id', athlete.id).select().single()
-    }
-
-    if (result.error) {
-      setError('Erro: ' + result.error.message)
-    } else {
-      onSaved(result.data)
-      onClose()
-    }
+    const payload = { name: form.name, email: form.email, group: form.group, pr_5km: pr5, pr_10km: pr10, strava_url: form.strava_url || null, notes: form.notes || null, active: form.active }
+    const result = isNew
+      ? await supabase.from('athletes').insert(payload).select().single()
+      : await supabase.from('athletes').update(payload).eq('id', athlete.id).select().single()
+    if (result.error) { setError('Erro: ' + result.error.message) }
+    else { onSaved(result.data); onClose() }
     setSaving(false)
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-lg rounded-2xl overflow-y-auto max-h-[90vh] shadow-2xl">
-        <div className="flex items-center justify-between p-5 border-b border-slate-100">
-          <h3 className="font-bold text-slate-800">{isNew ? 'Adicionar Atleta' : 'Editar Atleta'}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
+      <div className="w-full max-w-lg overflow-y-auto max-h-[90vh] rounded-2xl shadow-2xl"
+        style={{ background: 'var(--surface)' }}>
+        <div className="flex items-center justify-between p-5" style={{ borderBottom: '1px solid var(--border)' }}>
+          <h3 className="font-black" style={{ color: 'var(--text)' }}>{isNew ? 'Adicionar Atleta' : 'Editar Atleta'}</h3>
+          <button onClick={onClose} style={{ color: 'var(--text-muted)' }}><X size={20} /></button>
         </div>
-
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <div>
+            <label style={labelStyle}>Nome</label>
+            <input value={form.name} onChange={e => set('name', e.target.value)} required style={inputStyle}
+              onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+          </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-slate-600 mb-1">Nome</label>
-              <input value={form.name} onChange={e => set('name', e.target.value)} required
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#38bdf8]" />
+            <div>
+              <label style={labelStyle}>Email</label>
+              <input type="email" value={form.email} onChange={e => set('email', e.target.value)} required style={inputStyle}
+                onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
-              <input type="email" value={form.email} onChange={e => set('email', e.target.value)} required
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#38bdf8]" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Grupo</label>
-              <select value={form.group} onChange={e => set('group', e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#38bdf8]">
+              <label style={labelStyle}>Grupo</label>
+              <select value={form.group} onChange={e => set('group', e.target.value)} style={inputStyle}
+                onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'}>
                 {GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
               </select>
             </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">PR 5km (MM:SS)</label>
+              <label style={labelStyle}>PR 5km (MM:SS)</label>
               <input value={form.pr_5km} onChange={e => set('pr_5km', e.target.value)} placeholder="22:30"
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm pace-mono focus:outline-none focus:ring-2 focus:ring-[#38bdf8]" />
+                className="pace-mono" style={inputStyle}
+                onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">PR 10km (MM:SS)</label>
+              <label style={labelStyle}>PR 10km (MM:SS)</label>
               <input value={form.pr_10km} onChange={e => set('pr_10km', e.target.value)} placeholder="48:00"
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm pace-mono focus:outline-none focus:ring-2 focus:ring-[#38bdf8]" />
-            </div>
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-slate-600 mb-1">Strava URL</label>
-              <input type="url" value={form.strava_url} onChange={e => set('strava_url', e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#38bdf8]" />
-            </div>
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-slate-600 mb-1">Notas / Lesões</label>
-              <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#38bdf8]" />
-            </div>
-            <div className="col-span-2 flex items-center gap-2">
-              <input type="checkbox" id="active" checked={form.active} onChange={e => set('active', e.target.checked)}
-                className="rounded" />
-              <label htmlFor="active" className="text-sm text-slate-700">Atleta ativo</label>
+                className="pace-mono" style={inputStyle}
+                onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'} />
             </div>
           </div>
-
-          {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
-
+          <div>
+            <label style={labelStyle}>Strava URL</label>
+            <input type="url" value={form.strava_url} onChange={e => set('strava_url', e.target.value)} style={inputStyle}
+              onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+          </div>
+          <div>
+            <label style={labelStyle}>Notas / Lesões</label>
+            <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2}
+              style={{ ...inputStyle, resize: 'none' }}
+              onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={form.active} onChange={e => set('active', e.target.checked)} />
+            <span className="text-sm" style={{ color: 'var(--text)' }}>Atleta ativo</span>
+          </label>
+          {error && (
+            <div className="rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(255,69,58,0.12)', color: '#FF453A' }}>{error}</div>
+          )}
           <button type="submit" disabled={saving}
-            className="w-full bg-[#38bdf8] hover:bg-sky-400 text-white font-semibold rounded-lg py-2.5 text-sm transition-colors disabled:opacity-60">
+            className="w-full py-3.5 rounded-xl text-sm font-bold disabled:opacity-50"
+            style={{ background: 'var(--orange)', color: 'white' }}>
             {saving ? 'A guardar...' : 'Guardar'}
           </button>
         </form>
@@ -133,6 +142,7 @@ function AthleteDetail({ athlete, onClose, onUpdated }) {
   const [results, setResults] = useState([])
   const [plan, setPlan] = useState(null)
   const [showEdit, setShowEdit] = useState(false)
+  const grpClr = GROUP_COLORS[athlete.group] || GROUP_COLORS.G1
 
   useEffect(() => {
     async function load() {
@@ -147,81 +157,83 @@ function AthleteDetail({ athlete, onClose, onUpdated }) {
   }, [athlete.id])
 
   async function createPlan(objective) {
-    const { data, error } = await supabase.from('individual_plans').insert({
-      athlete_id: athlete.id,
-      objective,
-      weeks: 3,
-      content: {},
-    }).select().single()
+    const { data, error } = await supabase.from('individual_plans')
+      .insert({ athlete_id: athlete.id, objective, weeks: 3, content: {} })
+      .select().single()
     if (!error && data) setPlan(data)
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-2xl rounded-2xl overflow-y-auto max-h-[90vh] shadow-2xl">
-        <div className="flex items-center justify-between p-5 border-b border-slate-100">
-          <div>
-            <h3 className="font-bold text-slate-800">{athlete.name}</h3>
-            <p className="text-xs text-slate-500">{athlete.email} · {athlete.group}</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
+      <div className="w-full max-w-2xl rounded-2xl overflow-y-auto max-h-[90vh] shadow-2xl"
+        style={{ background: 'var(--surface)' }}>
+        <div className="flex items-center justify-between p-5" style={{ borderBottom: '1px solid var(--border)' }}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center font-black"
+              style={{ background: grpClr.bg, color: grpClr.text }}>
+              {athlete.name?.charAt(0)?.toUpperCase()}
+            </div>
+            <div>
+              <h3 className="font-black" style={{ color: 'var(--text)' }}>{athlete.name}</h3>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{athlete.email} · {athlete.group}</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setShowEdit(true)} className="text-slate-400 hover:text-slate-600"><Edit2 size={18} /></button>
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+            <button onClick={() => setShowEdit(true)} style={{ color: 'var(--text-muted)' }}><Edit2 size={18} /></button>
+            <button onClick={onClose} style={{ color: 'var(--text-muted)' }}><X size={20} /></button>
           </div>
         </div>
 
         <div className="p-5 space-y-5">
-          {/* PRs */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-slate-50 rounded-xl p-3 text-center">
-              <p className="text-xs text-slate-500 mb-1">PR 5km</p>
-              <p className="pace-mono font-bold text-slate-800">{athlete.pr_5km ? formatTime(athlete.pr_5km) : '—'}</p>
-            </div>
-            <div className="bg-slate-50 rounded-xl p-3 text-center">
-              <p className="text-xs text-slate-500 mb-1">PR 10km</p>
-              <p className="pace-mono font-bold text-slate-800">{athlete.pr_10km ? formatTime(athlete.pr_10km) : '—'}</p>
-            </div>
+            {[{ label: 'PR 5km', val: athlete.pr_5km }, { label: 'PR 10km', val: athlete.pr_10km }].map(({ label, val }) => (
+              <div key={label} className="rounded-xl p-3 text-center" style={{ background: 'var(--surface2)' }}>
+                <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>{label}</p>
+                <p className="pace-mono font-bold" style={{ color: 'var(--text)' }}>{val ? formatTime(val) : '—'}</p>
+              </div>
+            ))}
           </div>
 
-          {/* Notes */}
           {athlete.notes && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
-              {athlete.notes}
+            <div className="rounded-xl p-3 text-sm"
+              style={{ background: 'rgba(255,214,10,0.08)', border: '1px solid rgba(255,214,10,0.2)', color: '#FFD60A' }}>
+              ⚠ {athlete.notes}
             </div>
           )}
 
-          {/* Individual plan */}
           <div>
-            <h4 className="text-sm font-semibold text-slate-700 mb-2">Plano Individual</h4>
+            <h4 className="text-sm font-bold mb-2" style={{ color: 'var(--text-muted)' }}>Plano Individual</h4>
             {plan ? (
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-800">
+              <div className="rounded-xl p-3 text-sm"
+                style={{ background: 'rgba(10,132,255,0.08)', border: '1px solid rgba(10,132,255,0.2)', color: '#0A84FF' }}>
                 Objetivo: <strong>{plan.objective}</strong> · {plan.weeks} semanas
               </div>
             ) : (
               <div className="flex gap-2">
-                <button onClick={() => createPlan('5km')}
-                  className="flex-1 border border-[#38bdf8] text-[#38bdf8] text-sm rounded-lg py-2 hover:bg-sky-50 transition-colors">
-                  Criar plano 5km
-                </button>
-                <button onClick={() => createPlan('10km')}
-                  className="flex-1 border border-[#38bdf8] text-[#38bdf8] text-sm rounded-lg py-2 hover:bg-sky-50 transition-colors">
-                  Criar plano 10km
-                </button>
+                {['5km', '10km'].map(obj => (
+                  <button key={obj} onClick={() => createPlan(obj)}
+                    className="flex-1 py-2 rounded-xl text-sm font-bold transition-colors"
+                    style={{ background: 'rgba(252,76,2,0.12)', color: 'var(--orange)', border: '1px solid rgba(252,76,2,0.3)' }}>
+                    Criar plano {obj}
+                  </button>
+                ))}
               </div>
             )}
           </div>
 
-          {/* Recent results */}
           <div>
-            <h4 className="text-sm font-semibold text-slate-700 mb-2">Resultados recentes</h4>
+            <h4 className="text-sm font-bold mb-2" style={{ color: 'var(--text-muted)' }}>Resultados recentes</h4>
             {results.length === 0 ? (
-              <p className="text-sm text-slate-400">Sem resultados.</p>
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Sem resultados.</p>
             ) : (
               <div className="space-y-2">
                 {results.slice(0, 5).map(r => (
-                  <div key={r.id} className="flex items-center justify-between text-sm bg-slate-50 rounded-lg px-3 py-2">
-                    <span className="text-slate-600">{formatDate(r.date)} · {r.distance_km}km {r.races?.name ? `— ${r.races.name}` : ''}</span>
-                    <span className="pace-mono font-semibold text-slate-800">{formatTime(r.time_seconds)}</span>
+                  <div key={r.id} className="flex items-center justify-between text-sm rounded-xl px-3 py-2"
+                    style={{ background: 'var(--surface2)' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>
+                      {formatDate(r.date)} · {r.distance_km}km {r.races?.name ? `— ${r.races.name}` : ''}
+                    </span>
+                    <span className="pace-mono font-bold" style={{ color: 'var(--text)' }}>{formatTime(r.time_seconds)}</span>
                   </div>
                 ))}
               </div>
@@ -230,11 +242,8 @@ function AthleteDetail({ athlete, onClose, onUpdated }) {
         </div>
 
         {showEdit && (
-          <AthleteModal
-            athlete={athlete}
-            onClose={() => setShowEdit(false)}
-            onSaved={(updated) => { onUpdated(updated); setShowEdit(false) }}
-          />
+          <AthleteModal athlete={athlete} onClose={() => setShowEdit(false)}
+            onSaved={(updated) => { onUpdated(updated); setShowEdit(false) }} />
         )}
       </div>
     </div>
@@ -272,84 +281,91 @@ export default function Athletes() {
   )
 
   return (
-    <div className="p-6">
+    <div className="p-6" style={{ background: 'var(--dark)', minHeight: '100vh' }}>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Atletas</h2>
-          <p className="text-sm text-slate-500 mt-0.5">{athletes.length} atletas registados</p>
+          <h2 className="text-2xl font-black" style={{ color: 'var(--text)' }}>Atletas</h2>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{athletes.length} atletas registados</p>
         </div>
         <button onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 bg-[#38bdf8] text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-sky-400 transition-colors">
-          <Plus size={18} />
-          Novo Atleta
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold"
+          style={{ background: 'var(--orange)', color: 'white' }}>
+          <Plus size={18} /> Novo Atleta
         </button>
       </div>
 
-      <input
-        value={filter}
-        onChange={e => setFilter(e.target.value)}
+      <input value={filter} onChange={e => setFilter(e.target.value)}
         placeholder="Pesquisar por nome, email ou grupo..."
-        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-[#38bdf8]"
-      />
+        className="w-full mb-4"
+        style={{
+          background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)',
+          borderRadius: 12, padding: '10px 16px', fontSize: 14, outline: 'none',
+        }}
+        onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+        onBlur={e => e.target.style.borderColor = 'var(--border)'} />
 
       {loading ? <LoadingSpinner /> : (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+        <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-100">
+            <thead style={{ borderBottom: '1px solid var(--border)' }}>
               <tr>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Nome</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Grupo</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase hidden md:table-cell">PR 5km</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase hidden md:table-cell">PR 10km</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Estado</th>
+                {['Nome', 'Grupo', 'PR 5km', 'PR 10km', 'Estado'].map((h, i) => (
+                  <th key={h} className={`text-left px-4 py-3 text-xs font-bold uppercase tracking-wider ${i >= 2 && i <= 3 ? 'hidden md:table-cell' : ''}`}
+                    style={{ color: 'var(--text-muted)' }}>{h}</th>
+                ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
-              {filtered.map(a => (
-                <tr key={a.id} onClick={() => setSelected(a)}
-                  className="hover:bg-slate-50 cursor-pointer transition-colors">
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-slate-800">{a.name}</p>
-                    <p className="text-xs text-slate-500">{a.email}</p>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs font-bold bg-[#0f172a] text-[#38bdf8] px-2 py-0.5 rounded-full">
-                      {a.group || '—'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 hidden md:table-cell pace-mono text-slate-600">
-                    {a.pr_5km ? formatTime(a.pr_5km) : '—'}
-                  </td>
-                  <td className="px-4 py-3 hidden md:table-cell pace-mono text-slate-600">
-                    {a.pr_10km ? formatTime(a.pr_10km) : '—'}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                      a.active ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'
-                    }`}>
-                      {a.active ? 'Ativo' : 'Inativo'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+            <tbody>
+              {filtered.map(a => {
+                const grpClr = GROUP_COLORS[a.group] || GROUP_COLORS.G1
+                return (
+                  <tr key={a.id} onClick={() => setSelected(a)}
+                    className="cursor-pointer transition-colors"
+                    style={{ borderTop: '1px solid var(--border)' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    <td className="px-4 py-3">
+                      <p className="font-semibold" style={{ color: 'var(--text)' }}>{a.name}</p>
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{a.email}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-full"
+                        style={{ background: grpClr.bg, color: grpClr.text }}>
+                        {a.group || '—'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 hidden md:table-cell pace-mono" style={{ color: 'var(--text-muted)' }}>
+                      {a.pr_5km ? formatTime(a.pr_5km) : '—'}
+                    </td>
+                    <td className="px-4 py-3 hidden md:table-cell pace-mono" style={{ color: 'var(--text-muted)' }}>
+                      {a.pr_10km ? formatTime(a.pr_10km) : '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full"
+                        style={{
+                          background: a.active ? 'rgba(48,209,88,0.12)' : 'rgba(142,142,147,0.12)',
+                          color: a.active ? '#30D158' : 'var(--text-muted)',
+                        }}>
+                        {a.active ? 'Ativo' : 'Inativo'}
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
           {filtered.length === 0 && (
-            <div className="text-center py-12 text-slate-400 text-sm">Nenhum atleta encontrado.</div>
+            <div className="text-center py-12 text-sm" style={{ color: 'var(--text-muted)' }}>
+              Nenhum atleta encontrado.
+            </div>
           )}
         </div>
       )}
 
-      {showAdd && (
-        <AthleteModal onClose={() => setShowAdd(false)} onSaved={handleSaved} />
-      )}
-
+      {showAdd && <AthleteModal onClose={() => setShowAdd(false)} onSaved={handleSaved} />}
       {selected && (
-        <AthleteDetail
-          athlete={selected}
-          onClose={() => setSelected(null)}
-          onUpdated={(a) => { handleSaved(a); setSelected(a) }}
-        />
+        <AthleteDetail athlete={selected} onClose={() => setSelected(null)}
+          onUpdated={(a) => { handleSaved(a); setSelected(a) }} />
       )}
     </div>
   )
