@@ -211,6 +211,7 @@ export default function Register() {
           <h1 className="text-2xl font-black" style={{ color: 'var(--text)' }}>
             Criar conta <span style={{ color: 'var(--orange)' }}>RunTejo</span>
           </h1>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>v4</p>
         </div>
 
         {/* Step indicator */}
