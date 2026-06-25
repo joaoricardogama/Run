@@ -140,23 +140,23 @@ export default function Register() {
       password: form.password,
       options: { data: { name: form.name } },
     })
-    if (authErr) {
-      const msg = authErr.message || authErr.code || authErr.status?.toString() || 'Erro ao criar conta. Tenta novamente.'
-      setError(msg)
+
+    // If any error other than "already exists", abort
+    if (authErr && authErr.code !== 'user_already_exists') {
+      setError(authErr.message || 'Erro ao criar conta. Tenta novamente.')
       setLoading(false)
       return
     }
 
-    // Ensure we have an active session
-    let session = authData.session
+    // Ensure we have an active session (sign in if user already existed)
+    let session = authData?.session
     if (!session) {
-      // User may already exist — try signing in
       const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
         email: form.email,
         password: form.password,
       })
       if (signInErr || !signInData.session) {
-        setError('Confirma o teu email antes de entrar.')
+        setError('Confirma o teu email ou verifica a palavra-passe.')
         setLoading(false)
         return
       }
