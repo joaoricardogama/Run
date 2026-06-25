@@ -1,12 +1,14 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { Users, CalendarDays, BarChart3, ClipboardList, LogOut } from 'lucide-react'
+import { Users, CalendarDays, BarChart3, ClipboardList, LogOut, LayoutGrid } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 
 const NAV = [
-  { to: '/coach/atletas',   icon: Users,         label: 'Atletas' },
-  { to: '/coach/plano',     icon: ClipboardList,  label: 'Plano Geral' },
-  { to: '/coach/corridas',  icon: CalendarDays,   label: 'Corridas' },
-  { to: '/coach/resultados',icon: BarChart3,      label: 'Resultados' },
+  { to: '/coach/atletas',    icon: Users,         label: 'Atletas'    },
+  { to: '/coach/calendario', icon: LayoutGrid,    label: 'Calendário' },
+  { to: '/coach/plano',      icon: ClipboardList, label: 'Plano Geral' },
+  { to: '/coach/corridas',   icon: CalendarDays,  label: 'Corridas'   },
+  { to: '/coach/resultados', icon: BarChart3,     label: 'Resultados' },
 ]
 
 export default function CoachLayout() {
