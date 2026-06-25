@@ -161,7 +161,7 @@ export default function Register() {
 
     // 2. Create athlete record
     const group = assignGroup(form.sex, pr10)
-    const { error: insErr } = await supabase.from('athletes').insert({
+    const { error: insErr } = await supabase.from('athletes').upsert({
       name: form.name,
       email: form.email,
       group,
@@ -179,7 +179,7 @@ export default function Register() {
       pr_5km: pr5 || null,
       coach_id: form.coach_id || null,
       active: true,
-    })
+    }, { onConflict: 'email' })
     if (insErr) {
       setError(`Erro ao criar perfil: ${insErr.message || insErr.details || insErr.code || JSON.stringify(insErr)}`)
       setLoading(false)
