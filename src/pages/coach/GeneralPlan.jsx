@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { formatDate } from '../../utils/pace'
-import { Save, Plus, X } from 'lucide-react'
+import { Save, Plus, X, Sparkles } from 'lucide-react'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import SessionCard from '../../components/SessionCard'
+import { generateWeekPlan } from '../../utils/aiPlanGenerator'
 
 const GROUPS = ['G1', 'G2', 'G3', 'G4', 'G5', 'G6']
 const DAYS_PT = ['segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado', 'domingo']
@@ -119,6 +120,8 @@ export default function GeneralPlan() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [showAiModal, setShowAiModal] = useState(false)
+  const [hasRace, setHasRace] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -151,23 +154,81 @@ export default function GeneralPlan() {
     setSaving(false)
   }
 
+  function handleAiGenerate() {
+    const generated = generateWeekPlan(hasRace)
+    setContent(generated)
+    setShowAiModal(false)
+  }
+
   if (loading) return <LoadingSpinner />
 
   const grpClr = GROUP_COLORS[activeGroup] || GROUP_COLORS.G1
 
   return (
     <div className="p-6 max-w-4xl" style={{ background: 'var(--dark)', minHeight: '100vh' }}>
+      {/* AI Generate Modal */}
+      {showAiModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.8)' }}>
+          <div className="w-full max-w-sm rounded-2xl p-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+            <div className="flex items-center gap-2 mb-4">
+              <Sparkles size={20} style={{ color: 'var(--orange)' }} />
+              <h3 className="font-black" style={{ color: 'var(--text)' }}>Gerar Plano com IA</h3>
+            </div>
+            <p className="text-sm mb-5" style={{ color: 'var(--text-muted)' }}>
+              O plano será gerado automaticamente para todos os grupos (G1–G6) com base nos templates Run Tejo.
+            </p>
+            <p className="text-sm font-bold mb-3" style={{ color: 'var(--text)' }}>
+              Houve prova no fim de semana anterior?
+            </p>
+            <div className="flex gap-3 mb-6">
+              {[{ v: true, l: '✓ Sim — com prova', desc: '2ª feira CCL (recuperação)' }, { v: false, l: '✗ Não', desc: '2ª feira CCN (carga normal)' }].map(({ v, l, desc }) => (
+                <button key={String(v)} type="button" onClick={() => setHasRace(v)}
+                  className="flex-1 p-3 rounded-xl text-sm font-bold text-left transition-all"
+                  style={{
+                    background: hasRace === v ? 'rgba(252,76,2,0.15)' : 'var(--surface2)',
+                    color: hasRace === v ? 'var(--orange)' : 'var(--text-muted)',
+                    border: hasRace === v ? '1px solid rgba(252,76,2,0.4)' : '1px solid var(--border)',
+                  }}>
+                  <p>{l}</p>
+                  <p className="text-xs font-normal mt-0.5" style={{ color: 'var(--text-muted)' }}>{desc}</p>
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowAiModal(false)}
+                className="flex-1 py-3 rounded-xl text-sm font-bold"
+                style={{ background: 'var(--surface2)', color: 'var(--text)', border: '1px solid var(--border)' }}>
+                Cancelar
+              </button>
+              <button onClick={handleAiGenerate}
+                className="flex-1 py-3 rounded-xl text-sm font-bold"
+                style={{ background: 'var(--orange)', color: 'white' }}>
+                Gerar Plano
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-black" style={{ color: 'var(--text)' }}>Plano Geral</h2>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>Editor de plano semanal por grupo</p>
         </div>
-        <button onClick={handleSave} disabled={saving}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold disabled:opacity-50"
-          style={{ background: saved ? 'rgba(48,209,88,0.15)' : 'var(--orange)', color: saved ? '#30D158' : 'white' }}>
-          <Save size={18} />
-          {saving ? 'A publicar...' : saved ? 'Publicado!' : 'Publicar'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowAiModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold"
+            style={{ background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)' }}>
+            <Sparkles size={16} style={{ color: 'var(--orange)' }} />
+            Gerar com IA
+          </button>
+          <button onClick={handleSave} disabled={saving}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold disabled:opacity-50"
+            style={{ background: saved ? 'rgba(48,209,88,0.15)' : 'var(--orange)', color: saved ? '#30D158' : 'white' }}>
+            <Save size={18} />
+            {saving ? 'A publicar...' : saved ? 'Publicado!' : 'Publicar'}
+          </button>
+        </div>
       </div>
 
       <div className="rounded-2xl p-4 mb-4" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>

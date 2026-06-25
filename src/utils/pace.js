@@ -32,7 +32,7 @@ export function calculateZones(prSeconds, distanceKm) {
     base,
     CCL: { min: base + 60, max: base + 75 },
     CCN: { min: base + 30, max: base + 45 },
-    CCR: { min: base - 15, max: base },
+    CCR: { min: base, max: base + 15 },
   }
 }
 

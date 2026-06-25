@@ -107,8 +107,10 @@ export default function Register() {
   const [form, setForm] = useState({
     name: '', email: '', password: '',
     date_of_birth: '', sex: '', nationality: 'Portuguesa', location: '',
+    postal_code: '', nif: '',
     modalities: [], specializations: [],
     pr_10km: '', pr_5km: '', coach_id: '',
+    gdpr_consent: false,
   })
 
   function set(k, v) { setForm(p => ({ ...p, [k]: v })) }
@@ -150,6 +152,10 @@ export default function Register() {
       date_of_birth: form.date_of_birth || null,
       nationality: form.nationality || null,
       location: form.location || null,
+      postal_code: form.postal_code || null,
+      nif: form.nif || null,
+      gdpr_consent: true,
+      gdpr_consent_date: new Date().toISOString(),
       modalities: form.modalities,
       specializations: form.specializations,
       pr_10km: pr10 || null,
@@ -166,7 +172,7 @@ export default function Register() {
     form.name && form.sex && form.date_of_birth,
     form.modalities.length > 0 && form.pr_10km,
     form.coach_id,
-    form.email && form.password && form.password.length >= 6,
+    form.email && form.password && form.password.length >= 6 && form.gdpr_consent,
   ]
 
   return (
@@ -247,6 +253,22 @@ export default function Register() {
                   placeholder="Lisboa" style={inputStyle}
                   onFocus={e => e.target.style.borderColor = 'var(--orange)'}
                   onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label style={labelStyle}>Código Postal</label>
+                  <input value={form.postal_code} onChange={e => set('postal_code', e.target.value)}
+                    placeholder="1000-001" style={inputStyle}
+                    onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+                    onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+                </div>
+                <div>
+                  <label style={labelStyle}>NIF</label>
+                  <input value={form.nif} onChange={e => set('nif', e.target.value)}
+                    placeholder="123456789" maxLength={9} style={inputStyle}
+                    onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+                    onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+                </div>
               </div>
             </div>
           )}
@@ -360,6 +382,24 @@ export default function Register() {
                     <span className="font-semibold" style={{ color: l === 'Grupo' ? 'var(--orange)' : 'var(--text)' }}>{v}</span>
                   </div>
                 ))}
+              </div>
+
+              {/* GDPR Consent */}
+              <div className="rounded-2xl p-4" style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input type="checkbox" checked={form.gdpr_consent} onChange={e => set('gdpr_consent', e.target.checked)}
+                    className="mt-0.5 flex-shrink-0" style={{ accentColor: 'var(--orange)', width: 18, height: 18 }} />
+                  <div>
+                    <p className="text-xs font-bold mb-1" style={{ color: 'var(--text)' }}>
+                      Consentimento de utilização de dados
+                    </p>
+                    <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                      Autorizo o Run Tejo a recolher e tratar os meus dados pessoais (nome, email, NIF, data de nascimento, localização e dados desportivos) exclusivamente para fins de gestão de treinos, comunicação e análise de desempenho desportivo, em conformidade com o{' '}
+                      <strong style={{ color: 'var(--text)' }}>Regulamento (UE) 2016/679 (RGPD)</strong> e a{' '}
+                      <strong style={{ color: 'var(--text)' }}>Lei n.º 58/2019</strong>. Os dados não serão partilhados com terceiros sem consentimento explícito. Posso exercer os meus direitos de acesso, retificação e eliminação através do contacto com o clube.
+                    </p>
+                  </div>
+                </label>
               </div>
 
               {error && (
