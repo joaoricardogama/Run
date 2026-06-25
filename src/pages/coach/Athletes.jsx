@@ -5,7 +5,7 @@ import { calculateZones, formatZoneRange, formatDate } from '../../utils/pace'
 import { assignGroup } from '../../utils/groupAssignment'
 import SessionCard from '../../components/SessionCard'
 import LoadingSpinner from '../../components/LoadingSpinner'
-import { Plus, X, ChevronLeft, Edit2, Calendar, ClipboardList, User } from 'lucide-react'
+import { Plus, X, ChevronLeft, Edit2, Calendar, ClipboardList, User, Trash2 } from 'lucide-react'
 
 const GROUPS = {
   G1: '#FF6B35', G2: '#F7C59F', G3: '#c8c89e',
@@ -371,11 +371,21 @@ function AthleteDetail({ athlete: init, coaches, onBack, onRefresh }) {
   const [athlete, setAthlete] = useState(init)
   const [tab, setTab] = useState('perfil')
   const [editing, setEditing] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   async function refresh() {
     const { data } = await supabase.from('athletes').select('*').eq('id', init.id).single()
     if (data) setAthlete(data)
     onRefresh?.()
+  }
+
+  async function handleDelete() {
+    setDeleting(true)
+    const { error } = await supabase.rpc('delete_athlete_account', { p_athlete_id: athlete.id })
+    setDeleting(false)
+    if (!error) { onRefresh?.(); onBack() }
+    else alert('Erro ao eliminar: ' + error.message)
   }
 
   const gc = GROUPS[athlete.group] || 'var(--text-muted)'
@@ -397,7 +407,30 @@ function AthleteDetail({ athlete: init, coaches, onBack, onRefresh }) {
         </div>
         <span style={{ background: gc + '22', color: gc, fontWeight: 800, fontSize: 13, padding: '4px 12px', borderRadius: 20, flexShrink: 0 }}>{athlete.group}</span>
         <button onClick={() => setEditing(true)} style={{ background: 'var(--surface2)', border: 'none', color: 'var(--orange)', padding: '8px 14px', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>Editar</button>
+        <button onClick={() => setConfirmDelete(true)} style={{ background: 'rgba(255,69,58,0.12)', border: 'none', color: '#FF453A', padding: '8px 12px', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+          <Trash2 size={15} />
+        </button>
       </div>
+
+      {/* Confirmação de eliminação */}
+      {confirmDelete && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 20, padding: 28, maxWidth: 380, width: '100%' }}>
+            <h3 style={{ color: 'var(--text)', fontWeight: 800, fontSize: 17, marginBottom: 10 }}>Eliminar conta?</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 24 }}>
+              Isto vai eliminar <strong style={{ color: 'var(--text)' }}>{athlete.name}</strong> da base de dados e da autenticação. Esta ação é irreversível.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setConfirmDelete(false)} style={{ flex: 1, padding: 12, background: 'var(--surface2)', border: 'none', borderRadius: 12, color: 'var(--text)', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button onClick={handleDelete} disabled={deleting} style={{ flex: 1, padding: 12, background: '#FF453A', border: 'none', borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.7 : 1 }}>
+                {deleting ? 'A eliminar…' : 'Eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 20, overflowX: 'auto', paddingBottom: 2 }}>
         {TABS.map(t => (
