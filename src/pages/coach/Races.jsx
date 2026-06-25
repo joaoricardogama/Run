@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { formatDate, formatDistance } from '../../utils/pace'
-import { Plus, Edit2, Trash2, X, Users, MapPin } from 'lucide-react'
+import { Plus, Edit2, Trash2, X, Users, MapPin, Camera, Sparkles } from 'lucide-react'
 import LoadingSpinner from '../../components/LoadingSpinner'
+import { extractRaceFromImage } from '../../utils/extractRaceFromImage'
 
 const inputStyle = {
   background: 'var(--surface2)',
@@ -27,9 +28,34 @@ function RaceModal({ race, onClose, onSaved }) {
     registration_url: race?.registration_url || '',
   })
   const [saving, setSaving] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importOk, setImportOk] = useState(false)
   const [error, setError] = useState('')
+  const fileRef = useRef(null)
 
   function set(k, v) { setForm(p => ({ ...p, [k]: v })) }
+
+  async function handleImageImport(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImporting(true)
+    setError('')
+    setImportOk(false)
+    try {
+      const extracted = await extractRaceFromImage(file)
+      if (extracted.name) set('name', extracted.name)
+      if (extracted.date) set('date', extracted.date)
+      if (extracted.distance_km) set('distance_km', String(extracted.distance_km))
+      if (extracted.location) set('location', extracted.location)
+      if (extracted.description) set('description', extracted.description)
+      if (extracted.registration_url) set('registration_url', extracted.registration_url)
+      setImportOk(true)
+    } catch (err) {
+      setError('Erro ao analisar imagem: ' + err.message)
+    }
+    setImporting(false)
+    e.target.value = ''
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -55,7 +81,20 @@ function RaceModal({ race, onClose, onSaved }) {
       <div className="w-full max-w-md rounded-2xl shadow-2xl" style={{ background: 'var(--surface)' }}>
         <div className="flex items-center justify-between p-5" style={{ borderBottom: '1px solid var(--border)' }}>
           <h3 className="font-black" style={{ color: 'var(--text)' }}>{isNew ? 'Nova Corrida' : 'Editar Corrida'}</h3>
-          <button onClick={onClose} style={{ color: 'var(--text-muted)' }}><X size={20} /></button>
+          <div className="flex items-center gap-2">
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageImport} />
+            <button type="button" onClick={() => fileRef.current?.click()} disabled={importing}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+              style={{ background: importOk ? 'rgba(48,209,88,0.12)' : 'var(--surface2)', color: importOk ? '#30D158' : 'var(--orange)', border: `1px solid ${importOk ? 'rgba(48,209,88,0.3)' : 'rgba(252,76,2,0.3)'}` }}>
+              {importing
+                ? <><Sparkles size={13} className="animate-spin" /> A analisar...</>
+                : importOk
+                  ? <>✓ Importado</>
+                  : <><Camera size={13} /> Importar da imagem</>
+              }
+            </button>
+            <button onClick={onClose} style={{ color: 'var(--text-muted)' }}><X size={20} /></button>
+          </div>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
