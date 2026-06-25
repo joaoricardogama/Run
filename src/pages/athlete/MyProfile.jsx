@@ -1,199 +1,133 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { supabase } from '../../lib/supabase'
 import { calculateZones, formatZoneRange, formatTime, parseTime } from '../../utils/pace'
-import { CheckCircle2, AlertCircle, LogOut } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
 
 const GROUP_COLORS = {
-  G1: { bg: 'rgba(48,209,88,0.12)',  text: '#30D158' },
-  G2: { bg: 'rgba(10,132,255,0.12)', text: '#0A84FF' },
-  G3: { bg: 'rgba(255,214,10,0.12)', text: '#FFD60A' },
-  G4: { bg: 'rgba(255,159,10,0.12)', text: '#FF9F0A' },
-  G5: { bg: 'rgba(255,69,58,0.12)',  text: '#FF453A' },
-  G6: { bg: 'rgba(191,90,242,0.12)', text: '#BF5AF2' },
+  G1: '#FF6B35', G2: '#F7C59F', G3: '#c8c89e',
+  G4: '#4d9fd6', G5: '#1A936F', G6: '#88D498',
 }
 
 const ZONE_CONFIG = [
-  { key: 'CCL', label: 'CCL — Corrida Contínua Leve',   text: '#30D158', bg: 'rgba(48,209,88,0.08)' },
-  { key: 'CCN', label: 'CCN — Corrida Contínua Normal', text: '#FFD60A', bg: 'rgba(255,214,10,0.08)' },
-  { key: 'CCR', label: 'CCR — Corrida Contínua Rápida', text: '#FF453A', bg: 'rgba(255,69,58,0.08)' },
+  { key: 'CCL', label: 'CCL', bg: 'rgba(48,209,88,0.12)', text: '#30D158' },
+  { key: 'CCN', label: 'CCN', bg: 'rgba(255,214,10,0.12)', text: '#FFD60A' },
+  { key: 'CCR', label: 'CCR', bg: 'rgba(255,69,58,0.12)', text: '#FF453A' },
 ]
 
-const inputStyle = {
-  background: 'var(--surface2)',
-  border: '1px solid var(--border)',
-  color: 'var(--text)',
-  borderRadius: 10,
-  padding: '10px 14px',
-  fontSize: 14,
-  width: '100%',
-  outline: 'none',
-}
-const labelStyle = {
-  display: 'block', fontSize: 11, fontWeight: 600, textTransform: 'uppercase',
-  letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 6,
-}
-
-function ZonesDisplay({ prSeconds, distanceKm, label }) {
-  if (!prSeconds || !distanceKm) return null
-  const zones = calculateZones(prSeconds, distanceKm)
-  if (!zones) return null
+function InfoRow({ label, value }) {
+  if (!value) return null
   return (
-    <div className="feed-card p-4">
-      <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>
-        {label} — Zonas de ritmo
-      </p>
-      <div className="space-y-2">
-        {ZONE_CONFIG.map(({ key, label: zLabel, text, bg }) => (
-          <div key={key} className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: bg }}>
-            <span className="text-xs font-bold" style={{ color: text }}>{key}</span>
-            <span className="pace-mono text-sm font-medium" style={{ color: 'var(--text)' }}>{formatZoneRange(zones[key])}</span>
-          </div>
-        ))}
-      </div>
-      <p className="text-xs mt-3" style={{ color: 'var(--text-muted)' }}>
-        Ritmo base: <span className="pace-mono">{formatTime(Math.round(zones.base))}/km</span>
-      </p>
+    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+      <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{label}</span>
+      <span style={{ color: 'var(--text)', fontSize: 13, fontWeight: 600, maxWidth: '60%', textAlign: 'right' }}>{value}</span>
     </div>
   )
 }
 
 export default function MyProfile() {
-  const { athlete, refreshAthlete, signOut } = useAuth()
+  const { athlete, signOut, refreshAthlete } = useAuth()
   const navigate = useNavigate()
-  const [pr5Field, setPr5Field] = useState(athlete?.pr_5km ? formatTime(athlete.pr_5km) : '')
-  const [pr10Field, setPr10Field] = useState(athlete?.pr_10km ? formatTime(athlete.pr_10km) : '')
-  const [stravaUrl, setStravaUrl] = useState(athlete?.strava_url || '')
+  const [pr10, setPr10] = useState(athlete?.pr_10km ? formatTime(athlete.pr_10km) : '')
+  const [pr5, setPr5] = useState(athlete?.pr_5km ? formatTime(athlete.pr_5km) : '')
+  const [strava, setStrava] = useState(athlete?.strava_url || '')
   const [saving, setSaving] = useState(false)
   const [status, setStatus] = useState(null)
 
   if (!athlete) return null
 
-  const grpClr = GROUP_COLORS[athlete.group] || GROUP_COLORS.G1
+  const gc = GROUP_COLORS[athlete.group] || 'var(--text-muted)'
+  const zones10 = athlete.pr_10km ? calculateZones(athlete.pr_10km, 10) : null
+  const zones5 = athlete.pr_5km ? calculateZones(athlete.pr_5km, 5) : null
 
-  async function handleSave(e) {
-    e.preventDefault()
+  async function handleSave() {
+    const pr10s = pr10 ? parseTime(pr10) : null
+    const pr5s = pr5 ? parseTime(pr5) : null
+    if (pr10 && !pr10s) { setStatus({ ok: false, msg: 'Formato inválido. Use MM:SS' }); return }
     setSaving(true)
-    setStatus(null)
-    const pr5 = parseTime(pr5Field)
-    const pr10 = parseTime(pr10Field)
-    if (pr5Field && !pr5) { setStatus({ type: 'error', msg: 'Formato inválido para PR 5km (use MM:SS)' }); setSaving(false); return }
-    if (pr10Field && !pr10) { setStatus({ type: 'error', msg: 'Formato inválido para PR 10km (use MM:SS)' }); setSaving(false); return }
-    const { error } = await supabase.from('athletes').update({ pr_5km: pr5 || null, pr_10km: pr10 || null, strava_url: stravaUrl || null }).eq('id', athlete.id)
-    if (error) { setStatus({ type: 'error', msg: 'Erro ao guardar: ' + error.message }) }
-    else { await refreshAthlete(); setStatus({ type: 'success', msg: 'Perfil guardado com sucesso!' }) }
+    const { error } = await supabase.from('athletes')
+      .update({ pr_10km: pr10s, pr_5km: pr5s, strava_url: strava })
+      .eq('id', athlete.id)
     setSaving(false)
+    if (error) { setStatus({ ok: false, msg: error.message }); return }
+    setStatus({ ok: true, msg: 'Guardado!' })
+    await refreshAthlete()
+    setTimeout(() => setStatus(null), 3000)
   }
 
-  async function handleSignOut() {
-    await signOut()
-    navigate('/')
-  }
+  const inp = { style: { background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 10, padding: '10px 12px', width: '100%', fontSize: 14, boxSizing: 'border-box' } }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 pt-4 pb-28" style={{ background: 'var(--dark)', minHeight: '100vh' }}>
-      <h2 className="text-xl font-black mb-5" style={{ color: 'var(--text)' }}>O Meu Perfil</h2>
-
-      {/* Avatar card */}
-      <div className="feed-card p-4 mb-4 flex items-center gap-4">
-        <div className="w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl flex-shrink-0"
-          style={{ background: grpClr.bg, color: grpClr.text }}>
-          {athlete.name?.charAt(0)?.toUpperCase() || '?'}
+    <div style={{ maxWidth: 520, margin: '0 auto', padding: '24px 16px 100px' }}>
+      {/* Avatar */}
+      <div style={{ textAlign: 'center', marginBottom: 24 }}>
+        <div style={{ width: 72, height: 72, borderRadius: '50%', background: gc + '33', border: `3px solid ${gc}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', fontSize: 28, fontWeight: 800, color: gc }}>
+          {athlete.name?.[0]?.toUpperCase()}
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-black text-base" style={{ color: 'var(--text)' }}>{athlete.name}</p>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{athlete.email}</p>
-          <div className="flex flex-wrap gap-1.5 mt-1.5">
-            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full"
-              style={{ background: grpClr.bg, color: grpClr.text }}>
-              Grupo {athlete.group || '—'}
-            </span>
-            {athlete.sex && (
-              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full"
-                style={{ background: 'var(--surface2)', color: 'var(--text-muted)' }}>
-                {athlete.sex === 'M' ? '♂ Masc.' : '♀ Fem.'}
-              </span>
-            )}
-            {athlete.location && (
-              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full"
-                style={{ background: 'var(--surface2)', color: 'var(--text-muted)' }}>
-                📍 {athlete.location}
-              </span>
-            )}
-          </div>
-          {(athlete.modalities || []).length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1.5">
-              {athlete.modalities.map(m => (
-                <span key={m} className="text-xs px-2 py-0.5 rounded-full"
-                  style={{ background: 'rgba(252,76,2,0.1)', color: 'var(--orange)' }}>{m}</span>
-              ))}
+        <h2 style={{ color: 'var(--text)', fontWeight: 800, fontSize: 20 }}>{athlete.name}</h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>{athlete.email}</p>
+        <span style={{ display: 'inline-block', marginTop: 8, background: gc + '22', color: gc, fontWeight: 800, padding: '4px 14px', borderRadius: 20, fontSize: 13 }}>{athlete.group}</span>
+      </div>
+
+      {/* Dados pessoais */}
+      <div className="feed-card p-4 mb-4">
+        <p style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Dados pessoais</p>
+        <InfoRow label="Sexo" value={athlete.sex === 'M' ? 'Masculino' : athlete.sex === 'F' ? 'Feminino' : null} />
+        <InfoRow label="Data de nascimento" value={athlete.date_of_birth} />
+        <InfoRow label="Nacionalidade" value={athlete.nationality} />
+        <InfoRow label="Localidade" value={athlete.location} />
+        <InfoRow label="Modalidades" value={athlete.modalities?.join(', ')} />
+        <InfoRow label="Especializações" value={athlete.specializations?.join(', ')} />
+        <InfoRow label="RGPD" value={athlete.gdpr_consent ? 'Aceite' : null} />
+      </div>
+
+      {/* Zonas de ritmo */}
+      {(zones10 || zones5) && (
+        <div className="feed-card p-4 mb-4">
+          <p style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>Zonas de ritmo</p>
+          {[
+            { zones: zones10, label: `10km (${formatTime(athlete.pr_10km)})` },
+            { zones: zones5, label: `5km (${formatTime(athlete.pr_5km)})` },
+          ].filter(x => x.zones).map(({ zones, label }) => (
+            <div key={label} style={{ marginBottom: 14 }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: 11, marginBottom: 8 }}>{label}</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
+                {ZONE_CONFIG.map(({ key, label: l, bg, text }) => (
+                  <div key={key} style={{ background: bg, borderRadius: 10, padding: 10, textAlign: 'center' }}>
+                    <p style={{ color: text, fontWeight: 800, fontSize: 11, marginBottom: 3 }}>{l}</p>
+                    <p style={{ color: 'var(--text)', fontSize: 11, fontFamily: 'monospace' }}>{formatZoneRange(zones[key])}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          )}
+          ))}
         </div>
-      </div>
+      )}
 
-      {/* Edit form */}
-      <form onSubmit={handleSave} className="feed-card p-4 mb-4 space-y-4">
-        <div className="grid grid-cols-2 gap-3">
+      {/* Editar */}
+      <div className="feed-card p-4 mb-4">
+        <p style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>Atualizar dados</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
           <div>
-            <label style={labelStyle}>PR 5km (MM:SS)</label>
-            <input type="text" value={pr5Field} onChange={e => setPr5Field(e.target.value)}
-              placeholder="22:30" className="pace-mono" style={inputStyle}
-              onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+            <label style={{ color: 'var(--text-muted)', fontSize: 11, display: 'block', marginBottom: 4 }}>PR 10km</label>
+            <input {...inp} placeholder="35:00" value={pr10} onChange={e => setPr10(e.target.value)} />
           </div>
           <div>
-            <label style={labelStyle}>PR 10km (MM:SS)</label>
-            <input type="text" value={pr10Field} onChange={e => setPr10Field(e.target.value)}
-              placeholder="48:00" className="pace-mono" style={inputStyle}
-              onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+            <label style={{ color: 'var(--text-muted)', fontSize: 11, display: 'block', marginBottom: 4 }}>PR 5km</label>
+            <input {...inp} placeholder="17:00" value={pr5} onChange={e => setPr5(e.target.value)} />
           </div>
         </div>
-
-        <div>
-          <label style={labelStyle}>Perfil Strava</label>
-          <input type="url" value={stravaUrl} onChange={e => setStravaUrl(e.target.value)}
-            placeholder="https://www.strava.com/athletes/..." style={inputStyle}
-            onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-            onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-        </div>
-
-        {status && (
-          <div className="flex items-center gap-2 text-sm rounded-xl px-4 py-3"
-            style={{
-              background: status.type === 'success' ? 'rgba(48,209,88,0.12)' : 'rgba(255,69,58,0.12)',
-              color: status.type === 'success' ? '#30D158' : '#FF453A',
-            }}>
-            {status.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-            {status.msg}
-          </div>
-        )}
-
-        <button type="submit" disabled={saving}
-          className="w-full py-3.5 rounded-xl text-sm font-bold disabled:opacity-50"
-          style={{ background: 'var(--orange)', color: 'white' }}>
-          {saving ? 'A guardar...' : 'Guardar'}
+        <input {...inp} placeholder="URL Strava" value={strava} onChange={e => setStrava(e.target.value)} style={{ ...inp.style, marginBottom: 14 }} />
+        {status && <p style={{ color: status.ok ? '#30D158' : '#FF453A', fontSize: 13, marginBottom: 10 }}>{status.msg}</p>}
+        <button onClick={handleSave} disabled={saving}
+          style={{ width: '100%', padding: 12, background: 'var(--orange)', border: 'none', borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+          {saving ? 'A guardar…' : 'Guardar alterações'}
         </button>
-      </form>
-
-      {/* Pace zones */}
-      <div className="space-y-3 mb-5">
-        {athlete.pr_5km && <ZonesDisplay prSeconds={athlete.pr_5km} distanceKm={5} label="PR 5km" />}
-        {athlete.pr_10km && <ZonesDisplay prSeconds={athlete.pr_10km} distanceKm={10} label="PR 10km" />}
-        {!athlete.pr_5km && !athlete.pr_10km && (
-          <p className="text-center text-sm py-8" style={{ color: 'var(--text-muted)' }}>
-            Introduz os teus PRs para ver as zonas de ritmo calculadas.
-          </p>
-        )}
       </div>
 
-      {/* Sign out */}
-      <button onClick={handleSignOut}
-        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-bold"
-        style={{ background: 'var(--surface)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
-        <LogOut size={16} /> Terminar sessão
+      <button onClick={async () => { await signOut(); navigate('/') }}
+        style={{ width: '100%', padding: 12, background: 'none', border: '1px solid var(--border)', borderRadius: 12, color: 'var(--text-muted)', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+        Terminar sessão
       </button>
     </div>
   )

@@ -1,407 +1,557 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { formatTime, parseTime, formatDate } from '../../utils/pace'
-import { Plus, X, Edit2, MapPin, Tag } from 'lucide-react'
-import LoadingSpinner from '../../components/LoadingSpinner'
+import { generateIndividualPlan } from '../../utils/planGenerator'
+import { calculateZones, formatZoneRange, formatDate } from '../../utils/pace'
 import { assignGroup } from '../../utils/groupAssignment'
+import SessionCard from '../../components/SessionCard'
+import LoadingSpinner from '../../components/LoadingSpinner'
+import { Plus, X, ChevronLeft, Edit2, Calendar, ClipboardList, User } from 'lucide-react'
 
-const GROUPS = ['G1', 'G2', 'G3', 'G4', 'G5', 'G6']
-
-const GROUP_COLORS = {
-  G1: { bg: 'rgba(48,209,88,0.12)',  text: '#30D158' },
-  G2: { bg: 'rgba(10,132,255,0.12)', text: '#0A84FF' },
-  G3: { bg: 'rgba(255,214,10,0.12)', text: '#FFD60A' },
-  G4: { bg: 'rgba(255,159,10,0.12)', text: '#FF9F0A' },
-  G5: { bg: 'rgba(255,69,58,0.12)',  text: '#FF453A' },
-  G6: { bg: 'rgba(191,90,242,0.12)', text: '#BF5AF2' },
+const GROUPS = {
+  G1: '#FF6B35', G2: '#F7C59F', G3: '#c8c89e',
+  G4: '#4d9fd6', G5: '#1A936F', G6: '#88D498',
 }
 
-const inputStyle = {
-  background: 'var(--surface2)',
-  border: '1px solid var(--border)',
-  color: 'var(--text)',
-  borderRadius: 10,
-  padding: '10px 14px',
-  fontSize: 13,
-  width: '100%',
-  outline: 'none',
-}
-const labelStyle = {
-  display: 'block', fontSize: 11, fontWeight: 600, textTransform: 'uppercase',
-  letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 5,
+const DAYS_PT = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo']
+
+const ZONE_CONFIG = [
+  { key: 'CCL', label: 'CCL', bg: 'rgba(48,209,88,0.12)', text: '#30D158' },
+  { key: 'CCN', label: 'CCN', bg: 'rgba(255,214,10,0.12)', text: '#FFD60A' },
+  { key: 'CCR', label: 'CCR', bg: 'rgba(255,69,58,0.12)', text: '#FF453A' },
+]
+
+function secsToStr(s) {
+  if (!s) return ''
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
 
-function AthleteModal({ athlete, onClose, onSaved }) {
-  const isNew = !athlete
-  const [form, setForm] = useState({
-    name: athlete?.name || '', email: athlete?.email || '', group: athlete?.group || 'G1',
-    pr_5km: athlete?.pr_5km ? formatTime(athlete.pr_5km) : '',
-    pr_10km: athlete?.pr_10km ? formatTime(athlete.pr_10km) : '',
-    strava_url: athlete?.strava_url || '', notes: athlete?.notes || '', active: athlete?.active ?? true,
-  })
+function strToSecs(str) {
+  if (!str || !str.includes(':')) return null
+  const [m, s] = str.split(':').map(Number)
+  return m * 60 + (s || 0)
+}
+
+const Section = ({ label }) => (
+  <p style={{ color: 'var(--orange)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, margin: '16px 0 10px' }}>{label}</p>
+)
+const Grid = ({ children }) => <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 4 }}>{children}</div>
+const Full = ({ children }) => <div style={{ gridColumn: '1 / -1' }}>{children}</div>
+const Half = ({ children }) => <div>{children}</div>
+
+// ─── Form para adicionar / editar atleta ───────────────────────
+const EMPTY = {
+  name: '', email: '', sex: 'M', date_of_birth: '',
+  nationality: 'Portuguesa', location: '', postal_code: '', nif: '',
+  pr_10km: '', pr_5km: '', modalities: [], specializations: [],
+  coach_id: null, strava_url: '', notes: '', active: true, gdpr_consent: false,
+}
+
+function AthleteFormModal({ athlete, coaches, onSave, onClose }) {
+  const [form, setForm] = useState(() => athlete
+    ? { ...athlete, pr_10km: secsToStr(athlete.pr_10km), pr_5km: secsToStr(athlete.pr_5km), modalities: athlete.modalities || [], specializations: athlete.specializations || [] }
+    : { ...EMPTY })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  function set(field, value) { setForm(prev => ({ ...prev, [field]: value })) }
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
-  async function handleSubmit(e) {
-    e.preventDefault()
-    setSaving(true)
-    setError('')
-    const pr5 = form.pr_5km ? parseTime(form.pr_5km) : null
-    const pr10 = form.pr_10km ? parseTime(form.pr_10km) : null
-    if (form.pr_5km && !pr5) { setError('PR 5km inválido (MM:SS)'); setSaving(false); return }
-    if (form.pr_10km && !pr10) { setError('PR 10km inválido (MM:SS)'); setSaving(false); return }
-    const payload = { name: form.name, email: form.email, group: form.group, pr_5km: pr5, pr_10km: pr10, strava_url: form.strava_url || null, notes: form.notes || null, active: form.active }
-    const result = isNew
-      ? await supabase.from('athletes').insert(payload).select().single()
-      : await supabase.from('athletes').update(payload).eq('id', athlete.id).select().single()
-    if (result.error) { setError('Erro: ' + result.error.message) }
-    else { onSaved(result.data); onClose() }
+  const computedGroup = form.pr_10km && form.sex
+    ? assignGroup(form.sex, strToSecs(form.pr_10km)) : null
+
+  async function handleSave() {
+    if (!form.name || !form.email) { setError('Nome e email são obrigatórios.'); return }
+    setSaving(true); setError('')
+    const payload = {
+      name: form.name, email: form.email, sex: form.sex,
+      date_of_birth: form.date_of_birth || null,
+      nationality: form.nationality, location: form.location,
+      postal_code: form.postal_code, nif: form.nif,
+      pr_10km: strToSecs(form.pr_10km), pr_5km: strToSecs(form.pr_5km),
+      group: computedGroup || form.group || 'G6',
+      modalities: form.modalities, specializations: form.specializations,
+      coach_id: form.coach_id || null, strava_url: form.strava_url,
+      notes: form.notes, active: form.active, gdpr_consent: form.gdpr_consent,
+      gdpr_consent_date: form.gdpr_consent ? new Date().toISOString() : null,
+    }
+    const res = athlete?.id
+      ? await supabase.from('athletes').update(payload).eq('id', athlete.id)
+      : await supabase.from('athletes').insert(payload)
     setSaving(false)
+    if (res.error) { setError(res.error.message); return }
+    onSave()
   }
 
+  const I = { style: { background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 10, padding: '10px 12px', width: '100%', fontSize: 14, boxSizing: 'border-box' } }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
-      <div className="w-full max-w-lg overflow-y-auto max-h-[90vh] rounded-2xl shadow-2xl"
-        style={{ background: 'var(--surface)' }}>
-        <div className="flex items-center justify-between p-5" style={{ borderBottom: '1px solid var(--border)' }}>
-          <h3 className="font-black" style={{ color: 'var(--text)' }}>{isNew ? 'Adicionar Atleta' : 'Editar Atleta'}</h3>
-          <button onClick={onClose} style={{ color: 'var(--text-muted)' }}><X size={20} /></button>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 200, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', overflowY: 'auto', padding: '24px 16px' }}>
+      <div style={{ background: 'var(--surface)', borderRadius: 20, padding: 24, width: '100%', maxWidth: 540, marginBottom: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h3 style={{ color: 'var(--text)', fontWeight: 800, fontSize: 17 }}>{athlete ? 'Editar atleta' : 'Adicionar atleta'}</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={20} /></button>
         </div>
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div>
-            <label style={labelStyle}>Nome</label>
-            <input value={form.name} onChange={e => set('name', e.target.value)} required style={inputStyle}
-              onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+
+        <Section label="Dados pessoais" />
+        <Grid>
+          <Full><input {...I} placeholder="Nome completo *" value={form.name} onChange={e => set('name', e.target.value)} /></Full>
+          <Full><input {...I} placeholder="Email *" type="email" value={form.email} onChange={e => set('email', e.target.value)} /></Full>
+          <Half>
+            <select {...I} value={form.sex} onChange={e => set('sex', e.target.value)}>
+              <option value="M">Masculino</option>
+              <option value="F">Feminino</option>
+            </select>
+          </Half>
+          <Half><input {...I} type="date" value={form.date_of_birth} onChange={e => set('date_of_birth', e.target.value)} /></Half>
+          <Full><input {...I} placeholder="Nacionalidade" value={form.nationality} onChange={e => set('nationality', e.target.value)} /></Full>
+          <Half><input {...I} placeholder="Localidade" value={form.location} onChange={e => set('location', e.target.value)} /></Half>
+          <Half><input {...I} placeholder="Código postal" value={form.postal_code} onChange={e => set('postal_code', e.target.value)} /></Half>
+          <Full><input {...I} placeholder="NIF" value={form.nif} onChange={e => set('nif', e.target.value)} /></Full>
+        </Grid>
+
+        <Section label="Dados desportivos" />
+        <Grid>
+          <Half>
+            <label style={{ color: 'var(--text-muted)', fontSize: 11, display: 'block', marginBottom: 4 }}>PR 10km (MM:SS)</label>
+            <input {...I} placeholder="35:00" value={form.pr_10km} onChange={e => set('pr_10km', e.target.value)} />
+          </Half>
+          <Half>
+            <label style={{ color: 'var(--text-muted)', fontSize: 11, display: 'block', marginBottom: 4 }}>PR 5km (MM:SS)</label>
+            <input {...I} placeholder="17:00" value={form.pr_5km} onChange={e => set('pr_5km', e.target.value)} />
+          </Half>
+        </Grid>
+        {computedGroup && (
+          <div style={{ margin: '8px 0 14px', padding: '8px 14px', background: 'rgba(255,107,53,0.1)', borderRadius: 10, display: 'inline-block' }}>
+            <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>Grupo calculado: </span>
+            <span style={{ color: GROUPS[computedGroup], fontWeight: 800 }}>{computedGroup}</span>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label style={labelStyle}>Email</label>
-              <input type="email" value={form.email} onChange={e => set('email', e.target.value)} required style={inputStyle}
-                onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-                onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-            </div>
-            <div>
-              <label style={labelStyle}>Grupo</label>
-              <select value={form.group} onChange={e => set('group', e.target.value)} style={inputStyle}
-                onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-                onBlur={e => e.target.style.borderColor = 'var(--border)'}>
-                {GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label style={labelStyle}>PR 5km (MM:SS)</label>
-              <input value={form.pr_5km} onChange={e => set('pr_5km', e.target.value)} placeholder="22:30"
-                className="pace-mono" style={inputStyle}
-                onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-                onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-            </div>
-            <div>
-              <label style={labelStyle}>PR 10km (MM:SS)</label>
-              <input value={form.pr_10km} onChange={e => set('pr_10km', e.target.value)} placeholder="48:00"
-                className="pace-mono" style={inputStyle}
-                onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-                onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-            </div>
-          </div>
-          <div>
-            <label style={labelStyle}>Strava URL</label>
-            <input type="url" value={form.strava_url} onChange={e => set('strava_url', e.target.value)} style={inputStyle}
-              onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-          </div>
-          <div>
-            <label style={labelStyle}>Notas / Lesões</label>
-            <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2}
-              style={{ ...inputStyle, resize: 'none' }}
-              onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-          </div>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={form.active} onChange={e => set('active', e.target.checked)} />
-            <span className="text-sm" style={{ color: 'var(--text)' }}>Atleta ativo</span>
-          </label>
-          {error && (
-            <div className="rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(255,69,58,0.12)', color: '#FF453A' }}>{error}</div>
-          )}
-          <button type="submit" disabled={saving}
-            className="w-full py-3.5 rounded-xl text-sm font-bold disabled:opacity-50"
-            style={{ background: 'var(--orange)', color: 'white' }}>
-            {saving ? 'A guardar...' : 'Guardar'}
-          </button>
-        </form>
+        )}
+
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ color: 'var(--text-muted)', fontSize: 11, display: 'block', marginBottom: 4 }}>Treinador</label>
+          <select {...I} value={form.coach_id || ''} onChange={e => set('coach_id', e.target.value || null)}>
+            <option value="">— sem treinador —</option>
+            {coaches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+
+        <Grid>
+          <Full><input {...I} placeholder="URL Strava" value={form.strava_url || ''} onChange={e => set('strava_url', e.target.value)} /></Full>
+          <Full><textarea {...I} placeholder="Notas" rows={3} value={form.notes || ''} onChange={e => set('notes', e.target.value)} style={{ ...I.style, resize: 'vertical' }} /></Full>
+        </Grid>
+
+        <div style={{ display: 'flex', gap: 20, margin: '14px 0' }}>
+          {[['active', 'Ativo'], ['gdpr_consent', 'RGPD aceite']].map(([k, label]) => (
+            <label key={k} style={{ color: 'var(--text)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}>
+              <input type="checkbox" checked={form[k]} onChange={e => set(k, e.target.checked)} /> {label}
+            </label>
+          ))}
+        </div>
+
+        {error && <p style={{ color: '#FF453A', fontSize: 13, marginBottom: 12 }}>{error}</p>}
+        <button onClick={handleSave} disabled={saving} style={{ width: '100%', padding: 13, background: 'var(--orange)', border: 'none', borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 15, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+          {saving ? 'A guardar…' : 'Guardar'}
+        </button>
       </div>
     </div>
   )
 }
 
-function AthleteDetail({ athlete, onClose, onUpdated }) {
-  const [results, setResults] = useState([])
-  const [plan, setPlan] = useState(null)
-  const [showEdit, setShowEdit] = useState(false)
-  const grpClr = GROUP_COLORS[athlete.group] || GROUP_COLORS.G1
+// ─── Vista do plano do atleta ──────────────────────────────────
+function AthletePlanView({ athlete }) {
+  const [indPlan, setIndPlan] = useState(null)
+  const [genPlan, setGenPlan] = useState(null)
+  const [generated, setGenerated] = useState(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
-      const [resRes, planRes] = await Promise.all([
-        supabase.from('results').select('*, races(name)').eq('athlete_id', athlete.id).order('date', { ascending: false }).limit(10),
-        supabase.from('individual_plans').select('*').eq('athlete_id', athlete.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      const [iR, gR] = await Promise.all([
+        supabase.from('individual_plans').select('*').eq('athlete_id', athlete.id)
+          .order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('general_plans').select('*')
+          .order('week_start', { ascending: false }).limit(1).maybeSingle(),
       ])
-      if (resRes.data) setResults(resRes.data)
-      if (planRes.data) setPlan(planRes.data)
+      if (iR.data) { setIndPlan(iR.data); setGenerated(generateIndividualPlan(athlete, iR.data.objective, iR.data.weeks || 3)) }
+      if (gR.data) setGenPlan(gR.data)
+      setLoading(false)
     }
     load()
   }, [athlete.id])
 
-  async function createPlan(objective) {
-    const { data, error } = await supabase.from('individual_plans')
-      .insert({ athlete_id: athlete.id, objective, weeks: 3, content: {} })
-      .select().single()
-    if (!error && data) setPlan(data)
-  }
+  if (loading) return <LoadingSpinner />
+
+  const prSecs = indPlan ? (indPlan.objective === '5km' ? athlete.pr_5km : athlete.pr_10km) : null
+  const zones = prSecs ? calculateZones(prSecs, indPlan.objective === '5km' ? 5 : 10) : null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
-      <div className="w-full max-w-2xl rounded-2xl overflow-y-auto max-h-[90vh] shadow-2xl"
-        style={{ background: 'var(--surface)' }}>
-        <div className="flex items-center justify-between p-5" style={{ borderBottom: '1px solid var(--border)' }}>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center font-black"
-              style={{ background: grpClr.bg, color: grpClr.text }}>
-              {athlete.name?.charAt(0)?.toUpperCase()}
-            </div>
-            <div>
-              <h3 className="font-black" style={{ color: 'var(--text)' }}>{athlete.name}</h3>
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{athlete.email} · {athlete.group}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setShowEdit(true)} style={{ color: 'var(--text-muted)' }}><Edit2 size={18} /></button>
-            <button onClick={onClose} style={{ color: 'var(--text-muted)' }}><X size={20} /></button>
+    <div>
+      <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 16 }}>
+        Exatamente o que <strong style={{ color: 'var(--text)' }}>{athlete.name}</strong> vê na app.
+      </p>
+      {zones && (
+        <div style={{ background: 'var(--surface2)', borderRadius: 14, padding: 16, marginBottom: 16 }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', marginBottom: 10 }}>Zonas — {indPlan.objective}</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
+            {ZONE_CONFIG.map(({ key, label, bg, text }) => (
+              <div key={key} style={{ background: bg, borderRadius: 10, padding: 10, textAlign: 'center' }}>
+                <p style={{ color: text, fontWeight: 800, fontSize: 11, marginBottom: 3 }}>{label}</p>
+                <p style={{ color: 'var(--text)', fontSize: 11, fontFamily: 'monospace' }}>{formatZoneRange(zones[key])}</p>
+              </div>
+            ))}
           </div>
         </div>
-
-        <div className="p-5 space-y-5">
-          {/* Info row */}
-          <div className="flex flex-wrap gap-2">
-            {athlete.sex && (
-              <span className="text-xs font-bold px-2.5 py-1 rounded-full"
-                style={{ background: 'var(--surface2)', color: 'var(--text-muted)' }}>
-                {athlete.sex === 'M' ? 'Masculino' : 'Feminino'}
-              </span>
-            )}
-            {athlete.location && (
-              <span className="flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full"
-                style={{ background: 'var(--surface2)', color: 'var(--text-muted)' }}>
-                <MapPin size={11} /> {athlete.location}
-              </span>
-            )}
-            {athlete.nationality && (
-              <span className="text-xs font-bold px-2.5 py-1 rounded-full"
-                style={{ background: 'var(--surface2)', color: 'var(--text-muted)' }}>
-                {athlete.nationality}
-              </span>
-            )}
-            {(athlete.modalities || []).map(m => (
-              <span key={m} className="text-xs font-bold px-2.5 py-1 rounded-full"
-                style={{ background: 'rgba(252,76,2,0.1)', color: 'var(--orange)' }}>{m}</span>
-            ))}
+      )}
+      {indPlan && generated
+        ? generated.map(w => (
+          <div key={w.week} style={{ marginBottom: 20 }}>
+            <p style={{ color: 'var(--orange)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>{w.label}</p>
+            {w.days.map(({ day, session }) => <SessionCard key={day} session={session} day={day} />)}
           </div>
-
-          {(athlete.specializations || []).length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {athlete.specializations.map(s => (
-                <span key={s} className="text-xs px-2 py-0.5 rounded-lg"
-                  style={{ background: 'var(--surface2)', color: 'var(--text-muted)' }}>{s}</span>
-              ))}
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            {[{ label: 'PR 5km', val: athlete.pr_5km }, { label: 'PR 10km', val: athlete.pr_10km }].map(({ label, val }) => (
-              <div key={label} className="rounded-xl p-3 text-center" style={{ background: 'var(--surface2)' }}>
-                <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>{label}</p>
-                <p className="pace-mono font-bold" style={{ color: 'var(--text)' }}>{val ? formatTime(val) : '—'}</p>
+        ))
+        : genPlan
+          ? (
+            <>
+              <div style={{ background: 'var(--surface2)', borderRadius: 12, padding: '10px 14px', marginBottom: 12, fontSize: 13, color: 'var(--text-muted)' }}>
+                Plano do grupo <span style={{ color: 'var(--orange)', fontWeight: 700 }}>{athlete.group}</span> — sem plano individual.
               </div>
-            ))}
-          </div>
-
-          {athlete.notes && (
-            <div className="rounded-xl p-3 text-sm"
-              style={{ background: 'rgba(255,214,10,0.08)', border: '1px solid rgba(255,214,10,0.2)', color: '#FFD60A' }}>
-              ⚠ {athlete.notes}
-            </div>
-          )}
-
-          <div>
-            <h4 className="text-sm font-bold mb-2" style={{ color: 'var(--text-muted)' }}>Plano Individual</h4>
-            {plan ? (
-              <div className="rounded-xl p-3 text-sm"
-                style={{ background: 'rgba(10,132,255,0.08)', border: '1px solid rgba(10,132,255,0.2)', color: '#0A84FF' }}>
-                Objetivo: <strong>{plan.objective}</strong> · {plan.weeks} semanas
-              </div>
-            ) : (
-              <div className="flex gap-2">
-                {['5km', '10km'].map(obj => (
-                  <button key={obj} onClick={() => createPlan(obj)}
-                    className="flex-1 py-2 rounded-xl text-sm font-bold transition-colors"
-                    style={{ background: 'rgba(252,76,2,0.12)', color: 'var(--orange)', border: '1px solid rgba(252,76,2,0.3)' }}>
-                    Criar plano {obj}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <h4 className="text-sm font-bold mb-2" style={{ color: 'var(--text-muted)' }}>Resultados recentes</h4>
-            {results.length === 0 ? (
-              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Sem resultados.</p>
-            ) : (
-              <div className="space-y-2">
-                {results.slice(0, 5).map(r => (
-                  <div key={r.id} className="flex items-center justify-between text-sm rounded-xl px-3 py-2"
-                    style={{ background: 'var(--surface2)' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>
-                      {formatDate(r.date)} · {r.distance_km}km {r.races?.name ? `— ${r.races.name}` : ''}
-                    </span>
-                    <span className="pace-mono font-bold" style={{ color: 'var(--text)' }}>{formatTime(r.time_seconds)}</span>
+              <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 10 }}>Semana de {formatDate(genPlan.week_start)}</p>
+              {DAYS_PT.map(day => {
+                const sessions = genPlan.content?.[athlete.group]?.[day.toLowerCase()] || []
+                return sessions.length ? (
+                  <div key={day} style={{ marginBottom: 10 }}>
+                    {sessions.map((s, i) => <SessionCard key={i} session={s} day={day} />)}
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {showEdit && (
-          <AthleteModal athlete={athlete} onClose={() => setShowEdit(false)}
-            onSaved={(updated) => { onUpdated(updated); setShowEdit(false) }} />
-        )}
-      </div>
+                ) : null
+              })}
+            </>
+          )
+          : <p style={{ color: 'var(--text-muted)', textAlign: 'center', paddingTop: 40 }}>Sem plano publicado.</p>
+      }
     </div>
   )
 }
 
-export default function Athletes() {
-  const [athletes, setAthletes] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [showAdd, setShowAdd] = useState(false)
-  const [selected, setSelected] = useState(null)
-  const [filter, setFilter] = useState('')
+// ─── Plano individual (coach cria/edita) ───────────────────────
+function IndividualPlanForm({ athlete, onSaved }) {
+  const [existing, setExisting] = useState(null)
+  const [objective, setObjective] = useState('10km')
+  const [weeks, setWeeks] = useState(4)
+  const [saving, setSaving] = useState(false)
+  const [preview, setPreview] = useState(null)
+  const [saved, setSaved] = useState(false)
 
   useEffect(() => {
-    async function load() {
-      const { data } = await supabase.from('athletes').select('*').order('name')
-      if (data) setAthletes(data)
-      setLoading(false)
-    }
-    load()
-  }, [])
+    supabase.from('individual_plans').select('*').eq('athlete_id', athlete.id)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle()
+      .then(({ data }) => { if (data) { setExisting(data); setObjective(data.objective); setWeeks(data.weeks || 4) } })
+  }, [athlete.id])
 
-  function handleSaved(a) {
-    setAthletes(prev => {
-      const idx = prev.findIndex(x => x.id === a.id)
-      if (idx >= 0) { const n = [...prev]; n[idx] = a; return n }
-      return [...prev, a].sort((a, b) => a.name.localeCompare(b.name))
-    })
+  async function handleSave() {
+    setSaving(true)
+    const payload = { athlete_id: athlete.id, objective, weeks }
+    const res = existing
+      ? await supabase.from('individual_plans').update(payload).eq('id', existing.id)
+      : await supabase.from('individual_plans').insert(payload)
+    setSaving(false)
+    if (!res.error) { setSaved(true); setPreview(null); onSaved?.(); setTimeout(() => setSaved(false), 3000) }
   }
 
-  const filtered = athletes.filter(a =>
-    a.name.toLowerCase().includes(filter.toLowerCase()) ||
-    a.email.toLowerCase().includes(filter.toLowerCase()) ||
-    (a.group || '').toLowerCase().includes(filter.toLowerCase())
+  const Btn = ({ active, onClick, children }) => (
+    <button onClick={onClick} style={{ padding: '8px 18px', borderRadius: 10, border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer', background: active ? 'var(--orange)' : 'var(--surface2)', color: active ? '#fff' : 'var(--text-muted)' }}>
+      {children}
+    </button>
   )
 
   return (
-    <div className="p-6" style={{ background: 'var(--dark)', minHeight: '100vh' }}>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-2xl font-black" style={{ color: 'var(--text)' }}>Atletas</h2>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{athletes.length} atletas registados</p>
+    <div>
+      {existing && (
+        <div style={{ padding: '10px 14px', background: 'rgba(255,107,53,0.1)', borderRadius: 12, marginBottom: 16, fontSize: 13, color: 'var(--text)' }}>
+          Plano atual: <strong>{existing.objective}</strong> · {existing.weeks} semanas
         </div>
-        <button onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold"
-          style={{ background: 'var(--orange)', color: 'white' }}>
-          <Plus size={18} /> Novo Atleta
+      )}
+      <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 8 }}>Objetivo</p>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        <Btn active={objective === '5km'} onClick={() => setObjective('5km')}>5km</Btn>
+        <Btn active={objective === '10km'} onClick={() => setObjective('10km')}>10km</Btn>
+      </div>
+
+      <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 8 }}>
+        Semanas: <strong style={{ color: 'var(--text)' }}>{weeks}</strong>
+      </p>
+      <input type="range" min={1} max={12} value={weeks} onChange={e => setWeeks(+e.target.value)}
+        style={{ width: '100%', marginBottom: 24, accentColor: 'var(--orange)' }} />
+
+      {saved && <p style={{ color: '#30D158', fontSize: 13, marginBottom: 10 }}>✓ Plano guardado!</p>}
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
+        <button onClick={() => setPreview(generateIndividualPlan(athlete, objective, weeks))}
+          style={{ flex: 1, padding: 11, background: 'var(--surface2)', border: 'none', borderRadius: 12, color: 'var(--text)', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+          Pré-visualizar
+        </button>
+        <button onClick={handleSave} disabled={saving}
+          style={{ flex: 1, padding: 11, background: 'var(--orange)', border: 'none', borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+          {saving ? 'A guardar…' : existing ? 'Atualizar' : 'Criar plano'}
         </button>
       </div>
 
-      <input value={filter} onChange={e => setFilter(e.target.value)}
-        placeholder="Pesquisar por nome, email ou grupo..."
-        className="w-full mb-4"
-        style={{
-          background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)',
-          borderRadius: 12, padding: '10px 16px', fontSize: 14, outline: 'none',
-        }}
-        onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-        onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-
-      {loading ? <LoadingSpinner /> : (
-        <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-          <table className="w-full text-sm">
-            <thead style={{ borderBottom: '1px solid var(--border)' }}>
-              <tr>
-                {['Nome', 'Grupo', 'PR 5km', 'PR 10km', 'Estado'].map((h, i) => (
-                  <th key={h} className={`text-left px-4 py-3 text-xs font-bold uppercase tracking-wider ${i >= 2 && i <= 3 ? 'hidden md:table-cell' : ''}`}
-                    style={{ color: 'var(--text-muted)' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(a => {
-                const grpClr = GROUP_COLORS[a.group] || GROUP_COLORS.G1
-                return (
-                  <tr key={a.id} onClick={() => setSelected(a)}
-                    className="cursor-pointer transition-colors"
-                    style={{ borderTop: '1px solid var(--border)' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    <td className="px-4 py-3">
-                      <p className="font-semibold" style={{ color: 'var(--text)' }}>{a.name}</p>
-                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{a.email}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-xs font-bold px-2 py-0.5 rounded-full"
-                        style={{ background: grpClr.bg, color: grpClr.text }}>
-                        {a.group || '—'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 hidden md:table-cell pace-mono" style={{ color: 'var(--text-muted)' }}>
-                      {a.pr_5km ? formatTime(a.pr_5km) : '—'}
-                    </td>
-                    <td className="px-4 py-3 hidden md:table-cell pace-mono" style={{ color: 'var(--text-muted)' }}>
-                      {a.pr_10km ? formatTime(a.pr_10km) : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full"
-                        style={{
-                          background: a.active ? 'rgba(48,209,88,0.12)' : 'rgba(142,142,147,0.12)',
-                          color: a.active ? '#30D158' : 'var(--text-muted)',
-                        }}>
-                        {a.active ? 'Ativo' : 'Inativo'}
-                      </span>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-          {filtered.length === 0 && (
-            <div className="text-center py-12 text-sm" style={{ color: 'var(--text-muted)' }}>
-              Nenhum atleta encontrado.
+      {preview && (
+        <div>
+          <p style={{ color: 'var(--orange)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>Pré-visualização ({objective} · {weeks} sem.)</p>
+          {preview.map(w => (
+            <div key={w.week} style={{ marginBottom: 20 }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 600, marginBottom: 8 }}>{w.label}</p>
+              {w.days.map(({ day, session }) => <SessionCard key={day} session={session} day={day} />)}
             </div>
-          )}
+          ))}
         </div>
       )}
+    </div>
+  )
+}
 
-      {showAdd && <AthleteModal onClose={() => setShowAdd(false)} onSaved={handleSaved} />}
-      {selected && (
-        <AthleteDetail athlete={selected} onClose={() => setSelected(null)}
-          onUpdated={(a) => { handleSaved(a); setSelected(a) }} />
+// ─── Tab corridas ──────────────────────────────────────────────
+function RacesTab({ athlete }) {
+  const [races, setRaces] = useState([])
+  const [enrolled, setEnrolled] = useState(new Set())
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function load() {
+      const [rR, aR] = await Promise.all([
+        supabase.from('races').select('*').order('date'),
+        supabase.from('athlete_races').select('race_id').eq('athlete_id', athlete.id),
+      ])
+      setRaces(rR.data || [])
+      setEnrolled(new Set((aR.data || []).map(r => r.race_id)))
+      setLoading(false)
+    }
+    load()
+  }, [athlete.id])
+
+  async function toggle(raceId) {
+    if (enrolled.has(raceId)) {
+      await supabase.from('athlete_races').delete().eq('athlete_id', athlete.id).eq('race_id', raceId)
+      setEnrolled(s => { const n = new Set(s); n.delete(raceId); return n })
+    } else {
+      await supabase.from('athlete_races').insert({ athlete_id: athlete.id, race_id: raceId })
+      setEnrolled(s => new Set([...s, raceId]))
+    }
+  }
+
+  if (loading) return <LoadingSpinner />
+  if (!races.length) return <p style={{ color: 'var(--text-muted)', textAlign: 'center', paddingTop: 40 }}>Sem provas no calendário.</p>
+
+  return (
+    <div>
+      {races.map(r => {
+        const past = new Date(r.date) < new Date()
+        const inRace = enrolled.has(r.id)
+        return (
+          <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 14, background: 'var(--surface2)', borderRadius: 14, marginBottom: 10, opacity: past ? 0.55 : 1 }}>
+            <div style={{ textAlign: 'center', minWidth: 40 }}>
+              <p style={{ color: 'var(--orange)', fontWeight: 800, fontSize: 18, lineHeight: 1 }}>{new Date(r.date).getDate()}</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: 10 }}>{new Date(r.date).toLocaleString('pt', { month: 'short' }).toUpperCase()}</p>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ color: 'var(--text)', fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>{r.location} · {r.distance_km}km</p>
+            </div>
+            <button onClick={() => toggle(r.id)} style={{ padding: '7px 14px', borderRadius: 10, border: 'none', fontWeight: 700, fontSize: 12, cursor: 'pointer', background: inRace ? 'rgba(48,209,88,0.15)' : 'var(--surface)', color: inRace ? '#30D158' : 'var(--text-muted)', flexShrink: 0 }}>
+              {inRace ? '✓ Inscrito' : '+ Inscrever'}
+            </button>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── Detalhe do atleta ─────────────────────────────────────────
+function AthleteDetail({ athlete: init, coaches, onBack, onRefresh }) {
+  const [athlete, setAthlete] = useState(init)
+  const [tab, setTab] = useState('perfil')
+  const [editing, setEditing] = useState(false)
+
+  async function refresh() {
+    const { data } = await supabase.from('athletes').select('*').eq('id', init.id).single()
+    if (data) setAthlete(data)
+    onRefresh?.()
+  }
+
+  const gc = GROUPS[athlete.group] || 'var(--text-muted)'
+
+  const TABS = [
+    { id: 'perfil', label: 'Perfil', icon: <User size={13} /> },
+    { id: 'corridas', label: 'Corridas', icon: <Calendar size={13} /> },
+    { id: 'plano', label: 'Ver plano', icon: <ClipboardList size={13} /> },
+    { id: 'plano-ind', label: 'Plano individual', icon: <Edit2 size={13} /> },
+  ]
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+        <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}><ChevronLeft size={22} /></button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h2 style={{ color: 'var(--text)', fontWeight: 800, fontSize: 18, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{athlete.name}</h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>{athlete.email}</p>
+        </div>
+        <span style={{ background: gc + '22', color: gc, fontWeight: 800, fontSize: 13, padding: '4px 12px', borderRadius: 20, flexShrink: 0 }}>{athlete.group}</span>
+        <button onClick={() => setEditing(true)} style={{ background: 'var(--surface2)', border: 'none', color: 'var(--orange)', padding: '8px 14px', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>Editar</button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, marginBottom: 20, overflowX: 'auto', paddingBottom: 2 }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 13px', borderRadius: 20, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 700, fontSize: 12, background: tab === t.id ? 'var(--orange)' : 'var(--surface2)', color: tab === t.id ? '#fff' : 'var(--text-muted)' }}>
+            {t.icon} {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'perfil' && (
+        <div>
+          {[
+            ['Sexo', athlete.sex === 'M' ? 'Masculino' : 'Feminino'],
+            ['Nascimento', athlete.date_of_birth],
+            ['Nacionalidade', athlete.nationality],
+            ['Localidade', athlete.location],
+            ['Código postal', athlete.postal_code],
+            ['NIF', athlete.nif],
+            ['PR 10km', secsToStr(athlete.pr_10km)],
+            ['PR 5km', secsToStr(athlete.pr_5km)],
+            ['Modalidades', athlete.modalities?.join(', ')],
+            ['Especializações', athlete.specializations?.join(', ')],
+            ['Strava', athlete.strava_url],
+            ['Notas', athlete.notes],
+            ['Estado', athlete.active ? 'Ativo' : 'Inativo'],
+            ['RGPD', athlete.gdpr_consent ? `Aceite em ${athlete.gdpr_consent_date?.slice(0, 10)}` : 'Não aceite'],
+          ].filter(([, v]) => v).map(([label, value]) => (
+            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '11px 0', borderBottom: '1px solid var(--border)' }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{label}</span>
+              <span style={{ color: 'var(--text)', fontSize: 13, fontWeight: 600, maxWidth: '60%', textAlign: 'right', wordBreak: 'break-word' }}>{value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === 'corridas' && <RacesTab athlete={athlete} />}
+      {tab === 'plano' && <AthletePlanView athlete={athlete} />}
+      {tab === 'plano-ind' && <IndividualPlanForm athlete={athlete} onSaved={refresh} />}
+
+      {editing && (
+        <AthleteFormModal athlete={athlete} coaches={coaches}
+          onClose={() => setEditing(false)}
+          onSave={() => { setEditing(false); refresh() }} />
+      )}
+    </div>
+  )
+}
+
+// ─── Lista principal ───────────────────────────────────────────
+export default function Athletes() {
+  const [athletes, setAthletes] = useState([])
+  const [coaches, setCoaches] = useState([])
+  const [search, setSearch] = useState('')
+  const [groupFilter, setGroupFilter] = useState('all')
+  const [loading, setLoading] = useState(true)
+  const [selected, setSelected] = useState(null)
+  const [adding, setAdding] = useState(false)
+
+  async function load() {
+    const [aR, cR] = await Promise.all([
+      supabase.from('athletes').select('*').order('name'),
+      supabase.from('coaches').select('*').order('name'),
+    ])
+    setAthletes(aR.data || [])
+    setCoaches(cR.data || [])
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [])
+
+  const filtered = athletes.filter(a => {
+    const q = search.toLowerCase()
+    return (!q || a.name?.toLowerCase().includes(q) || a.email?.toLowerCase().includes(q))
+      && (groupFilter === 'all' || a.group === groupFilter)
+  })
+
+  if (loading) return <LoadingSpinner />
+
+  if (selected) {
+    return (
+      <div style={{ maxWidth: 680, margin: '0 auto', padding: '24px 16px' }}>
+        <AthleteDetail athlete={selected} coaches={coaches}
+          onBack={() => setSelected(null)} onRefresh={load} />
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <h2 style={{ color: 'var(--text)', fontWeight: 800, fontSize: 20 }}>
+          Atletas <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 15 }}>({athletes.length})</span>
+        </h2>
+        <button onClick={() => setAdding(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', background: 'var(--orange)', border: 'none', borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+          <Plus size={15} /> Adicionar
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+        <input placeholder="Pesquisar…" value={search} onChange={e => setSearch(e.target.value)}
+          style={{ flex: 1, minWidth: 180, padding: '10px 14px', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 12, fontSize: 14 }} />
+        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+          {['all', 'G1', 'G2', 'G3', 'G4', 'G5', 'G6'].map(g => (
+            <button key={g} onClick={() => setGroupFilter(g)} style={{ padding: '8px 11px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 12, background: groupFilter === g ? (GROUPS[g] || 'var(--orange)') : 'var(--surface2)', color: groupFilter === g ? '#000' : 'var(--text-muted)' }}>
+              {g === 'all' ? 'Todos' : g}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ background: 'var(--surface)', borderRadius: 16, overflow: 'hidden' }}>
+        {!filtered.length
+          ? <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 48 }}>Nenhum atleta encontrado.</p>
+          : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                  {['Nome', 'Grupo', 'PR 10km', 'PR 5km', 'Estado'].map(h => (
+                    <th key={h} style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(a => {
+                  const gc = GROUPS[a.group] || 'var(--text-muted)'
+                  return (
+                    <tr key={a.id} onClick={() => setSelected(a)}
+                      style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                      onMouseLeave={e => e.currentTarget.style.background = ''}>
+                      <td style={{ padding: '13px 16px' }}>
+                        <p style={{ color: 'var(--text)', fontWeight: 700, fontSize: 14 }}>{a.name}</p>
+                        <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>{a.email}</p>
+                      </td>
+                      <td style={{ padding: '13px 16px' }}>
+                        <span style={{ background: gc + '22', color: gc, fontWeight: 800, fontSize: 12, padding: '3px 10px', borderRadius: 20 }}>{a.group}</span>
+                      </td>
+                      <td style={{ padding: '13px 16px', color: 'var(--text)', fontSize: 13, fontFamily: 'monospace' }}>{secsToStr(a.pr_10km) || '—'}</td>
+                      <td style={{ padding: '13px 16px', color: 'var(--text)', fontSize: 13, fontFamily: 'monospace' }}>{secsToStr(a.pr_5km) || '—'}</td>
+                      <td style={{ padding: '13px 16px' }}>
+                        <span style={{ color: a.active ? '#30D158' : '#FF453A', fontWeight: 700, fontSize: 12 }}>{a.active ? 'Ativo' : 'Inativo'}</span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )
+        }
+      </div>
+
+      {adding && (
+        <AthleteFormModal athlete={null} coaches={coaches}
+          onClose={() => setAdding(false)}
+          onSave={() => { setAdding(false); load() }} />
       )}
     </div>
   )
