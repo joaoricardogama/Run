@@ -134,22 +134,30 @@ export default function Register() {
 
     if (!pr10) { setError('Formato de PR 10km inválido (use MM:SS ou HH:MM:SS)'); setLoading(false); return }
 
-    // 1. Create auth user
+    // 1. Create auth user (or sign in if already exists)
     const { data: authData, error: authErr } = await supabase.auth.signUp({
       email: form.email,
       password: form.password,
       options: { data: { name: form.name } },
     })
-    if (authErr) { setError(authErr.message || JSON.stringify(authErr)); setLoading(false); return }
+    if (authErr) { setError(authErr.message || 'Erro ao criar conta'); setLoading(false); return }
 
-    // Ensure session is active before inserting
-    if (authData.session) {
-      await supabase.auth.setSession(authData.session)
-    } else {
-      // Email confirmation still required — account created, ask to confirm
-      navigate('/login?registered=1')
-      return
+    // Ensure we have an active session
+    let session = authData.session
+    if (!session) {
+      // User may already exist — try signing in
+      const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
+        email: form.email,
+        password: form.password,
+      })
+      if (signInErr || !signInData.session) {
+        setError('Confirma o teu email antes de entrar.')
+        setLoading(false)
+        return
+      }
+      session = signInData.session
     }
+    await supabase.auth.setSession(session)
 
     // 2. Create athlete record
     const group = assignGroup(form.sex, pr10)
