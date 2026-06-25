@@ -164,29 +164,26 @@ export default function Register() {
     }
     await supabase.auth.setSession(session)
 
-    // 2. Create athlete record
+    // 2. Create athlete record via RPC (bypasses RLS safely)
     const group = assignGroup(form.sex, pr10)
-    const { error: insErr } = await supabase.from('athletes').upsert({
-      name: form.name,
-      email: form.email,
-      group,
-      sex: form.sex || null,
-      date_of_birth: form.date_of_birth || null,
-      nationality: form.nationality || null,
-      location: form.location || null,
-      postal_code: form.postal_code || null,
-      nif: form.nif || null,
-      gdpr_consent: true,
-      gdpr_consent_date: new Date().toISOString(),
-      modalities: form.modalities,
-      specializations: form.specializations,
-      pr_10km: pr10 || null,
-      pr_5km: pr5 || null,
-      coach_id: form.coach_id || null,
-      active: true,
-    }, { onConflict: 'email' })
+    const { error: insErr } = await supabase.rpc('register_athlete', {
+      p_name: form.name,
+      p_email: form.email,
+      p_group: group,
+      p_sex: form.sex || null,
+      p_date_of_birth: form.date_of_birth || null,
+      p_nationality: form.nationality || null,
+      p_location: form.location || null,
+      p_postal_code: form.postal_code || null,
+      p_nif: form.nif || null,
+      p_modalities: form.modalities,
+      p_specializations: form.specializations,
+      p_pr_10km: pr10 || null,
+      p_pr_5km: pr5 || null,
+      p_coach_id: form.coach_id || null,
+    })
     if (insErr) {
-      setError(`Erro ao criar perfil: ${insErr.message || insErr.details || insErr.code || JSON.stringify(insErr)}`)
+      setError(`Erro ao criar perfil: ${insErr.message || insErr.details || insErr.code || 'Erro desconhecido'}`)
       setLoading(false)
       return
     }
