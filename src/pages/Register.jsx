@@ -140,7 +140,16 @@ export default function Register() {
       password: form.password,
       options: { data: { name: form.name } },
     })
-    if (authErr) { setError(authErr.message); setLoading(false); return }
+    if (authErr) { setError(authErr.message || JSON.stringify(authErr)); setLoading(false); return }
+
+    // Ensure session is active before inserting
+    if (authData.session) {
+      await supabase.auth.setSession(authData.session)
+    } else {
+      // Email confirmation still required — account created, ask to confirm
+      navigate('/login?registered=1')
+      return
+    }
 
     // 2. Create athlete record
     const group = assignGroup(form.sex, pr10)
@@ -163,7 +172,11 @@ export default function Register() {
       coach_id: form.coach_id || null,
       active: true,
     })
-    if (insErr) { setError('Erro ao criar perfil: ' + insErr.message); setLoading(false); return }
+    if (insErr) {
+      setError(`Erro ao criar perfil: ${insErr.message || insErr.details || insErr.code || JSON.stringify(insErr)}`)
+      setLoading(false)
+      return
+    }
 
     navigate('/plano')
   }
