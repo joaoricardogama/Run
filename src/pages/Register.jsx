@@ -140,7 +140,12 @@ export default function Register() {
       password: form.password,
       options: { data: { name: form.name } },
     })
-    if (authErr) { setError(authErr.message || 'Erro ao criar conta'); setLoading(false); return }
+    if (authErr) {
+      const msg = authErr.message || authErr.code || authErr.status?.toString() || 'Erro ao criar conta. Tenta novamente.'
+      setError(msg)
+      setLoading(false)
+      return
+    }
 
     // Ensure we have an active session
     let session = authData.session
