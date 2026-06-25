@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { formatTime, parseTime, formatDate } from '../../utils/pace'
-import { Plus, X, Edit2 } from 'lucide-react'
+import { Plus, X, Edit2, MapPin, Tag } from 'lucide-react'
 import LoadingSpinner from '../../components/LoadingSpinner'
+import { assignGroup } from '../../utils/groupAssignment'
 
 const GROUPS = ['G1', 'G2', 'G3', 'G4', 'G5', 'G6']
 
@@ -185,6 +186,41 @@ function AthleteDetail({ athlete, onClose, onUpdated }) {
         </div>
 
         <div className="p-5 space-y-5">
+          {/* Info row */}
+          <div className="flex flex-wrap gap-2">
+            {athlete.sex && (
+              <span className="text-xs font-bold px-2.5 py-1 rounded-full"
+                style={{ background: 'var(--surface2)', color: 'var(--text-muted)' }}>
+                {athlete.sex === 'M' ? 'Masculino' : 'Feminino'}
+              </span>
+            )}
+            {athlete.location && (
+              <span className="flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full"
+                style={{ background: 'var(--surface2)', color: 'var(--text-muted)' }}>
+                <MapPin size={11} /> {athlete.location}
+              </span>
+            )}
+            {athlete.nationality && (
+              <span className="text-xs font-bold px-2.5 py-1 rounded-full"
+                style={{ background: 'var(--surface2)', color: 'var(--text-muted)' }}>
+                {athlete.nationality}
+              </span>
+            )}
+            {(athlete.modalities || []).map(m => (
+              <span key={m} className="text-xs font-bold px-2.5 py-1 rounded-full"
+                style={{ background: 'rgba(252,76,2,0.1)', color: 'var(--orange)' }}>{m}</span>
+            ))}
+          </div>
+
+          {(athlete.specializations || []).length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {athlete.specializations.map(s => (
+                <span key={s} className="text-xs px-2 py-0.5 rounded-lg"
+                  style={{ background: 'var(--surface2)', color: 'var(--text-muted)' }}>{s}</span>
+              ))}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             {[{ label: 'PR 5km', val: athlete.pr_5km }, { label: 'PR 10km', val: athlete.pr_10km }].map(({ label, val }) => (
               <div key={label} className="rounded-xl p-3 text-center" style={{ background: 'var(--surface2)' }}>

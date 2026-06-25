@@ -1,0 +1,411 @@
+import { useState, useEffect } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
+import { parseTime } from '../utils/pace'
+import { assignGroup, MODALITIES, SPECIALIZATIONS } from '../utils/groupAssignment'
+import { AlertCircle, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react'
+
+const inputStyle = {
+  background: 'var(--surface2)',
+  border: '1px solid var(--border)',
+  color: 'var(--text)',
+  borderRadius: 12,
+  padding: '12px 16px',
+  fontSize: 14,
+  width: '100%',
+  outline: 'none',
+}
+const labelStyle = {
+  display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+  letterSpacing: '0.07em', color: 'var(--text-muted)', marginBottom: 6,
+}
+
+function MultiSelect({ options, value, onChange, columns = 2 }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: 8 }}>
+      {options.map(opt => {
+        const selected = value.includes(opt)
+        return (
+          <button key={opt} type="button"
+            onClick={() => onChange(selected ? value.filter(v => v !== opt) : [...value, opt])}
+            style={{
+              padding: '8px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600,
+              textAlign: 'left', cursor: 'pointer', transition: 'all 0.15s',
+              background: selected ? 'rgba(252,76,2,0.15)' : 'var(--surface2)',
+              color: selected ? 'var(--orange)' : 'var(--text-muted)',
+              border: selected ? '1px solid rgba(252,76,2,0.4)' : '1px solid var(--border)',
+            }}>
+            {selected ? '✓ ' : ''}{opt}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function SpecializationsSection({ modalities, value, onChange }) {
+  const [open, setOpen] = useState({})
+  if (!modalities.length) return null
+
+  const relevantMods = modalities.filter(m => SPECIALIZATIONS[m])
+  if (!relevantMods.length) return null
+
+  return (
+    <div className="space-y-3">
+      {relevantMods.map(mod => (
+        <div key={mod}>
+          <p className="text-xs font-bold mb-2" style={{ color: 'var(--text)' }}>{mod} — Especialização</p>
+          {SPECIALIZATIONS[mod].map(({ group, items }) => (
+            <div key={group} className="mb-2">
+              <button type="button" onClick={() => setOpen(p => ({ ...p, [mod+group]: !p[mod+group] }))}
+                className="flex items-center justify-between w-full mb-1.5"
+                style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 600 }}>
+                <span>{group}</span>
+                {open[mod+group] ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+              {(open[mod+group] || modalities.length === 1) && (
+                <MultiSelect options={items} value={value} onChange={onChange} columns={2} />
+              )}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function GroupBadge({ group }) {
+  const colors = {
+    G1: { bg: 'rgba(48,209,88,0.15)',  text: '#30D158' },
+    G2: { bg: 'rgba(10,132,255,0.15)', text: '#0A84FF' },
+    G3: { bg: 'rgba(255,214,10,0.15)', text: '#FFD60A' },
+    G4: { bg: 'rgba(255,159,10,0.15)', text: '#FF9F0A' },
+    G5: { bg: 'rgba(255,69,58,0.15)',  text: '#FF453A' },
+    G6: { bg: 'rgba(191,90,242,0.15)', text: '#BF5AF2' },
+  }
+  if (!group) return null
+  const clr = colors[group] || colors.G6
+  return (
+    <div className="rounded-2xl p-4 text-center"
+      style={{ background: clr.bg, border: `1px solid ${clr.text}33` }}>
+      <p className="text-xs font-bold mb-1" style={{ color: clr.text }}>Grupo atribuído</p>
+      <p className="text-4xl font-black" style={{ color: clr.text }}>{group}</p>
+    </div>
+  )
+}
+
+const STEPS = ['Pessoal', 'Desporto', 'Treinador', 'Conta']
+
+export default function Register() {
+  const navigate = useNavigate()
+  const [step, setStep] = useState(0)
+  const [coaches, setCoaches] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  // Form state
+  const [form, setForm] = useState({
+    name: '', email: '', password: '',
+    date_of_birth: '', sex: '', nationality: 'Portuguesa', location: '',
+    modalities: [], specializations: [],
+    pr_10km: '', pr_5km: '', coach_id: '',
+  })
+
+  function set(k, v) { setForm(p => ({ ...p, [k]: v })) }
+
+  useEffect(() => {
+    supabase.from('coaches').select('id, name, email').order('name').then(({ data }) => {
+      if (data) setCoaches(data)
+    })
+  }, [])
+
+  const pr10Seconds = parseTime(form.pr_10km)
+  const autoGroup = form.sex && pr10Seconds ? assignGroup(form.sex, pr10Seconds) : null
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+
+    const pr10 = parseTime(form.pr_10km)
+    const pr5 = parseTime(form.pr_5km)
+
+    if (!pr10) { setError('Formato de PR 10km inválido (use MM:SS ou HH:MM:SS)'); setLoading(false); return }
+
+    // 1. Create auth user
+    const { data: authData, error: authErr } = await supabase.auth.signUp({
+      email: form.email,
+      password: form.password,
+      options: { data: { name: form.name } },
+    })
+    if (authErr) { setError(authErr.message); setLoading(false); return }
+
+    // 2. Create athlete record
+    const group = assignGroup(form.sex, pr10)
+    const { error: insErr } = await supabase.from('athletes').insert({
+      name: form.name,
+      email: form.email,
+      group,
+      sex: form.sex || null,
+      date_of_birth: form.date_of_birth || null,
+      nationality: form.nationality || null,
+      location: form.location || null,
+      modalities: form.modalities,
+      specializations: form.specializations,
+      pr_10km: pr10 || null,
+      pr_5km: pr5 || null,
+      coach_id: form.coach_id || null,
+      active: true,
+    })
+    if (insErr) { setError('Erro ao criar perfil: ' + insErr.message); setLoading(false); return }
+
+    navigate('/plano')
+  }
+
+  const canNext = [
+    form.name && form.sex && form.date_of_birth,
+    form.modalities.length > 0 && form.pr_10km,
+    form.coach_id,
+    form.email && form.password && form.password.length >= 6,
+  ]
+
+  return (
+    <div className="min-h-screen flex flex-col" style={{ background: 'var(--dark)' }}>
+      <div className="max-w-sm w-full mx-auto px-5 pt-10 pb-16 flex-1">
+
+        {/* Logo */}
+        <div className="mb-8 text-center">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3"
+            style={{ background: 'var(--orange)' }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="white">
+              <path d="M13.49 5.48c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm-3.6 13.9l1-4.4 2.1 2v6h2v-7.5l-2.1-2 .6-3c1.3 1.5 3.3 2.5 5.5 2.5v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1l-5.2 2.2v4.7h2v-3.4l1.8-.7-1.6 8.1-4.9-1-.4 2 7 1.4z"/>
+            </svg>
+          </div>
+          <h1 className="text-2xl font-black" style={{ color: 'var(--text)' }}>
+            Criar conta <span style={{ color: 'var(--orange)' }}>RunTejo</span>
+          </h1>
+        </div>
+
+        {/* Step indicator */}
+        <div className="flex items-center gap-2 mb-8">
+          {STEPS.map((s, i) => (
+            <div key={s} className="flex-1 flex flex-col items-center gap-1">
+              <div className="h-1 w-full rounded-full transition-all"
+                style={{ background: i <= step ? 'var(--orange)' : 'var(--surface3)' }} />
+              <span className="text-xs font-medium" style={{ color: i === step ? 'var(--orange)' : 'var(--text-muted)' }}>
+                {s}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <form onSubmit={handleSubmit}>
+
+          {/* STEP 0 — Dados pessoais */}
+          {step === 0 && (
+            <div className="space-y-4">
+              <div>
+                <label style={labelStyle}>Nome completo</label>
+                <input value={form.name} onChange={e => set('name', e.target.value)} required
+                  placeholder="João Silva" style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label style={labelStyle}>Sexo</label>
+                  <div className="flex gap-2">
+                    {[{ v: 'M', l: 'Masc.' }, { v: 'F', l: 'Fem.' }].map(({ v, l }) => (
+                      <button key={v} type="button" onClick={() => set('sex', v)}
+                        className="flex-1 py-3 rounded-xl text-sm font-bold transition-all"
+                        style={{
+                          background: form.sex === v ? 'rgba(252,76,2,0.15)' : 'var(--surface2)',
+                          color: form.sex === v ? 'var(--orange)' : 'var(--text-muted)',
+                          border: form.sex === v ? '1px solid rgba(252,76,2,0.4)' : '1px solid var(--border)',
+                        }}>{l}</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label style={labelStyle}>Data de nascimento</label>
+                  <input type="date" value={form.date_of_birth} onChange={e => set('date_of_birth', e.target.value)}
+                    style={inputStyle}
+                    onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+                    onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+                </div>
+              </div>
+              <div>
+                <label style={labelStyle}>Nacionalidade</label>
+                <input value={form.nationality} onChange={e => set('nationality', e.target.value)}
+                  placeholder="Portuguesa" style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+              </div>
+              <div>
+                <label style={labelStyle}>Localidade</label>
+                <input value={form.location} onChange={e => set('location', e.target.value)}
+                  placeholder="Lisboa" style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+              </div>
+            </div>
+          )}
+
+          {/* STEP 1 — Desporto */}
+          {step === 1 && (
+            <div className="space-y-5">
+              <div>
+                <label style={labelStyle}>Modalidade(s)</label>
+                <MultiSelect options={MODALITIES} value={form.modalities}
+                  onChange={v => { set('modalities', v); set('specializations', []) }}
+                  columns={3} />
+              </div>
+
+              {form.modalities.length > 0 && (
+                <SpecializationsSection
+                  modalities={form.modalities}
+                  value={form.specializations}
+                  onChange={v => set('specializations', v)} />
+              )}
+
+              <div>
+                <label style={labelStyle}>PR 10km (MM:SS)</label>
+                <input value={form.pr_10km} onChange={e => set('pr_10km', e.target.value)}
+                  placeholder="48:30" className="pace-mono" style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                  Usado para determinar o teu grupo de treino
+                </p>
+              </div>
+
+              <div>
+                <label style={labelStyle}>PR 5km (MM:SS) — opcional</label>
+                <input value={form.pr_5km} onChange={e => set('pr_5km', e.target.value)}
+                  placeholder="22:30" className="pace-mono" style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+              </div>
+
+              {autoGroup && (
+                <GroupBadge group={autoGroup} />
+              )}
+            </div>
+          )}
+
+          {/* STEP 2 — Treinador */}
+          {step === 2 && (
+            <div className="space-y-3">
+              <label style={labelStyle}>Seleciona o teu treinador</label>
+              {coaches.length === 0 ? (
+                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>A carregar treinadores...</p>
+              ) : (
+                coaches.map(coach => (
+                  <button key={coach.id} type="button"
+                    onClick={() => set('coach_id', coach.id)}
+                    className="w-full flex items-center gap-4 p-4 rounded-2xl text-left transition-all"
+                    style={{
+                      background: form.coach_id === coach.id ? 'rgba(252,76,2,0.12)' : 'var(--surface)',
+                      border: form.coach_id === coach.id ? '1px solid rgba(252,76,2,0.4)' : '1px solid var(--border)',
+                    }}>
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center font-black text-lg flex-shrink-0"
+                      style={{ background: 'rgba(252,76,2,0.15)', color: 'var(--orange)' }}>
+                      {coach.name.charAt(0)}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-bold text-sm" style={{ color: 'var(--text)' }}>{coach.name}</p>
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{coach.email}</p>
+                    </div>
+                    {form.coach_id === coach.id && (
+                      <CheckCircle2 size={20} style={{ color: 'var(--orange)', flexShrink: 0 }} />
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* STEP 3 — Conta */}
+          {step === 3 && (
+            <div className="space-y-4">
+              <div>
+                <label style={labelStyle}>Email</label>
+                <input type="email" value={form.email} onChange={e => set('email', e.target.value)} required
+                  placeholder="o.teu@email.pt" style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+              </div>
+              <div>
+                <label style={labelStyle}>Palavra-passe</label>
+                <input type="password" value={form.password} onChange={e => set('password', e.target.value)} required
+                  placeholder="••••••••" minLength={6} style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Mínimo 6 caracteres</p>
+              </div>
+
+              {/* Summary */}
+              <div className="rounded-2xl p-4 space-y-2" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                <p className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)' }}>Resumo</p>
+                {[
+                  { l: 'Nome', v: form.name },
+                  { l: 'Sexo', v: form.sex === 'M' ? 'Masculino' : 'Feminino' },
+                  { l: 'Modalidades', v: form.modalities.join(', ') },
+                  { l: 'PR 10km', v: form.pr_10km },
+                  { l: 'Grupo', v: autoGroup || '—' },
+                  { l: 'Treinador', v: coaches.find(c => c.id === form.coach_id)?.name || '—' },
+                ].map(({ l, v }) => (
+                  <div key={l} className="flex justify-between text-sm">
+                    <span style={{ color: 'var(--text-muted)' }}>{l}</span>
+                    <span className="font-semibold" style={{ color: l === 'Grupo' ? 'var(--orange)' : 'var(--text)' }}>{v}</span>
+                  </div>
+                ))}
+              </div>
+
+              {error && (
+                <div className="flex items-center gap-2 rounded-xl px-4 py-3 text-sm"
+                  style={{ background: 'rgba(255,69,58,0.12)', color: '#FF453A' }}>
+                  <AlertCircle size={15} /> {error}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Navigation */}
+          <div className="flex gap-3 mt-8">
+            {step > 0 && (
+              <button type="button" onClick={() => setStep(s => s - 1)}
+                className="flex-1 py-4 rounded-xl text-sm font-bold"
+                style={{ background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)' }}>
+                ← Voltar
+              </button>
+            )}
+            {step < STEPS.length - 1 ? (
+              <button type="button"
+                onClick={() => canNext[step] && setStep(s => s + 1)}
+                className="flex-1 py-4 rounded-xl text-sm font-bold transition-all"
+                style={{
+                  background: canNext[step] ? 'var(--orange)' : 'var(--surface)',
+                  color: canNext[step] ? 'white' : 'var(--text-muted)',
+                  border: canNext[step] ? 'none' : '1px solid var(--border)',
+                }}>
+                Continuar →
+              </button>
+            ) : (
+              <button type="submit" disabled={loading || !canNext[step]}
+                className="flex-1 py-4 rounded-xl text-sm font-bold disabled:opacity-50"
+                style={{ background: 'var(--orange)', color: 'white' }}>
+                {loading ? 'A criar conta...' : 'Criar conta'}
+              </button>
+            )}
+          </div>
+        </form>
+
+        <p className="text-center text-sm mt-6" style={{ color: 'var(--text-muted)' }}>
+          Já tens conta?{' '}
+          <Link to="/login" style={{ color: 'var(--orange)', fontWeight: 700 }}>Entrar</Link>
+        </p>
+      </div>
+    </div>
+  )
+}

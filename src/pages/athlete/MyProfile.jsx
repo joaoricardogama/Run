@@ -104,10 +104,32 @@ export default function MyProfile() {
         <div className="flex-1 min-w-0">
           <p className="font-black text-base" style={{ color: 'var(--text)' }}>{athlete.name}</p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{athlete.email}</p>
-          <span className="inline-block mt-1.5 text-xs font-bold px-2.5 py-0.5 rounded-full"
-            style={{ background: grpClr.bg, color: grpClr.text }}>
-            Grupo {athlete.group || '—'}
-          </span>
+          <div className="flex flex-wrap gap-1.5 mt-1.5">
+            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full"
+              style={{ background: grpClr.bg, color: grpClr.text }}>
+              Grupo {athlete.group || '—'}
+            </span>
+            {athlete.sex && (
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full"
+                style={{ background: 'var(--surface2)', color: 'var(--text-muted)' }}>
+                {athlete.sex === 'M' ? '♂ Masc.' : '♀ Fem.'}
+              </span>
+            )}
+            {athlete.location && (
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full"
+                style={{ background: 'var(--surface2)', color: 'var(--text-muted)' }}>
+                📍 {athlete.location}
+              </span>
+            )}
+          </div>
+          {(athlete.modalities || []).length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {athlete.modalities.map(m => (
+                <span key={m} className="text-xs px-2 py-0.5 rounded-full"
+                  style={{ background: 'rgba(252,76,2,0.1)', color: 'var(--orange)' }}>{m}</span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

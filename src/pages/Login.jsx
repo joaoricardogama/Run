@@ -104,9 +104,15 @@ export default function Login() {
           </button>
         </form>
 
-        <Link to="/" className="mt-8 text-sm font-medium" style={{ color: 'var(--text-muted)' }}>
-          ← Ver plano público
-        </Link>
+        <div className="mt-8 flex flex-col items-center gap-3">
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+            Ainda não tens conta?{' '}
+            <Link to="/registo" style={{ color: 'var(--orange)', fontWeight: 700 }}>Criar conta</Link>
+          </p>
+          <Link to="/" className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>
+            ← Ver plano público
+          </Link>
+        </div>
       </div>
     </div>
   )

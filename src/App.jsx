@@ -8,6 +8,7 @@ import LoadingSpinner from './components/LoadingSpinner'
 
 import Home from './pages/Home'
 import Login from './pages/Login'
+import Register from './pages/Register'
 
 const MyPlan        = lazy(() => import('./pages/athlete/MyPlan'))
 const MyRaces       = lazy(() => import('./pages/athlete/MyRaces'))
@@ -49,7 +50,8 @@ export default function App() {
       <AuthProvider>
         <Suspense fallback={<LoadingSpinner />}>
           <Routes>
-            <Route path="/login" element={<Login />} />
+            <Route path="/login"    element={<Login />} />
+            <Route path="/registo" element={<Register />} />
 
             <Route path="/" element={<PublicShell><Home /></PublicShell>} />
 
