@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
 import { Flame, Trophy, Users, ChevronRight, ClipboardList, CalendarDays, BarChart3, UserCircle, RefreshCw } from 'lucide-react'
 import LoadingSpinner from '../components/LoadingSpinner'
+import BottomNav from '../components/BottomNav'
 
 const STRAVA_CLIENT_ID  = '261127'
 const STRAVA_REDIRECT   = 'https://run-blush.vercel.app/strava/callback'
@@ -480,6 +481,7 @@ export default function Dashboard() {
           Sair
         </button>
       </div>
+      <BottomNav />
     </div>
   )
 }
