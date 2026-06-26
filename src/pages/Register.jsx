@@ -277,10 +277,16 @@ export default function Register() {
   // ── Render ──────────────────────────────────────────────────────
   return (
     <div style={{ minHeight: '100dvh', background: 'var(--dark)', display: 'flex', flexDirection: 'column' }}>
+      <style>{`
+        @media (max-width: 480px) {
+          .reg-header { padding-top: 24px !important; padding-bottom: 20px !important; }
+          .reg-time-picker .time-num { font-size: 44px !important; }
+        }
+      `}</style>
       <div style={{ maxWidth: 420, width: '100%', margin: '0 auto', padding: '0 20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
 
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingTop: 40, paddingBottom: 28 }}>
+        <div className="reg-header" style={{ display: 'flex', alignItems: 'center', gap: 12, paddingTop: 40, paddingBottom: 28 }}>
           <button onClick={() => {
             if (step === 2 && subStep > 0) setSubStep(s => s - 1)
             else if (step > 1) { setStep(s => s - 1); setSubStep(0) }

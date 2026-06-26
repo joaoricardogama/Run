@@ -61,7 +61,7 @@ function TypeBadge({ type }) {
 
 // ── Coach dashboard ───────────────────────────────────────────────
 function CoachDashboard({ navigate, signOut }) {
-  const [stats, setStats] = useState({ total: 0, active: 0, pending: 0, completion: 0 })
+  const [stats, setStats] = useState({ total: 0, active: 0 })
 
   useEffect(() => {
     async function load() {
@@ -75,27 +75,39 @@ function CoachDashboard({ navigate, signOut }) {
   }, [])
 
   return (
-    <div style={{ minHeight: '100dvh', background: 'var(--dark)', display: 'flex' }}>
+    <div className="coach-layout" style={{ background: 'var(--dark)' }}>
       {/* Sidebar */}
-      <aside style={{ width: 200, background: 'var(--surface)', borderRight: '1px solid var(--border)', padding: '24px 0', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-        <div style={{ padding: '0 20px 20px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+      <aside className="coach-sidebar" style={{ background: 'var(--surface)', borderRight: '1px solid var(--border)', flexDirection: 'column' }}>
+        <div className="coach-sidebar-inner">
+          {/* Logo always visible */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span style={{ fontWeight: 900, fontSize: 18, letterSpacing: '-0.03em' }}>H<span style={{ color: 'var(--heh-green)' }}>é</span>H</span>
             <span style={{ color: 'var(--heh-green)', fontSize: 8 }}>✦</span>
           </div>
-          <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>FOCUS</p>
+          {/* Mobile: show quick nav inline */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button onClick={() => navigate('/coach/atletas')}
+              style={{ padding: '8px 14px', borderRadius: 10, background: 'rgba(184,255,0,0.10)', border: 'none', cursor: 'pointer', color: 'var(--heh-green)', fontWeight: 700, fontSize: 13 }}>
+              Atletas
+            </button>
+            <button onClick={async () => { await signOut(); navigate('/login') }}
+              style={{ fontSize: 12, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+              Sair
+            </button>
+          </div>
         </div>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
-          <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)' }}>João Gama</p>
-          <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>Treinador</p>
+        {/* Desktop-only sidebar content */}
+        <div className="coach-sidebar-meta" style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', borderTop: '1px solid var(--border)' }}>
+          <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)' }}>Treinador</p>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>HéH Focus</p>
         </div>
-        <nav style={{ padding: '12px 12px', flex: 1 }}>
+        <nav className="coach-sidebar-nav" style={{ padding: '12px', flex: 1 }}>
           <button onClick={() => navigate('/coach/atletas')}
             style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: 'rgba(184,255,0,0.10)', border: 'none', cursor: 'pointer', color: 'var(--heh-green)', fontWeight: 700, fontSize: 13 }}>
             <Zap size={15} /> Dashboard
           </button>
         </nav>
-        <div style={{ padding: '12px 20px' }}>
+        <div className="coach-sidebar-footer" style={{ padding: '12px 20px' }}>
           <button onClick={async () => { await signOut(); navigate('/login') }}
             style={{ fontSize: 12, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
             → Sair
@@ -104,15 +116,14 @@ function CoachDashboard({ navigate, signOut }) {
       </aside>
 
       {/* Main */}
-      <main style={{ flex: 1, padding: '40px 48px', overflowY: 'auto' }}>
-        <h1 style={{ fontWeight: 900, fontSize: 36, letterSpacing: '-0.04em', fontStyle: 'italic', marginBottom: 4, color: 'var(--text)' }}>COACH HQ</h1>
+      <main className="coach-main">
+        <h1 style={{ fontWeight: 900, fontSize: 'clamp(24px, 5vw, 36px)', letterSpacing: '-0.04em', fontStyle: 'italic', marginBottom: 4, color: 'var(--text)' }}>COACH HQ</h1>
         <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 32 }}>Visão geral do esquadrão</p>
 
-        {/* Stat cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, marginBottom: 40 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16, marginBottom: 40 }}>
           {[
-            { label: 'ATLETAS TOTAIS',    value: stats.total,  },
-            { label: 'ATIVOS NA SEMANA',  value: stats.active, },
+            { label: 'ATLETAS TOTAIS',   value: stats.total  },
+            { label: 'ATIVOS NA SEMANA', value: stats.active },
           ].map(({ label, value }) => (
             <div key={label} style={{ background: 'var(--surface)', borderRadius: 16, padding: '20px 24px', border: '1px solid var(--border)' }}>
               <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 8 }}>{label}</p>
@@ -279,10 +290,17 @@ export default function Dashboard() {
 
   return (
     <div style={{ minHeight: '100dvh', background: 'var(--dark)', paddingBottom: 100 }}>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @media (max-width: 480px) {
+          .dash-greeting { padding: 24px 0 16px !important; }
+          .dash-greeting h1 { font-size: 28px !important; }
+        }
+      `}</style>
       <div style={{ maxWidth: 520, margin: '0 auto', padding: '0 16px' }}>
 
         {/* ── Greeting ── */}
-        <div style={{ padding: '40px 0 24px' }}>
+        <div className="dash-greeting" style={{ padding: '40px 0 24px' }}>
           <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.15em', color: 'var(--heh-green)', marginBottom: 4 }}>
             {greeting()},
           </p>
@@ -302,7 +320,7 @@ export default function Dashboard() {
         </div>
 
         {/* ── 4 Stat cards ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 24 }}>
+        <div className="grid-2-4" style={{ marginBottom: 24 }}>
           {STAT_CARDS.map(({ label, value, accent }) => (
             <div key={label} style={{ background: accent ? 'var(--heh-green)' : 'var(--surface)', borderRadius: 14, padding: '14px 10px', textAlign: 'center', border: accent ? 'none' : '1px solid var(--border)' }}>
               <p style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', color: accent ? '#080808' : 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>{label}</p>
@@ -465,7 +483,6 @@ export default function Dashboard() {
       </div>
 
       <BottomNav />
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }
