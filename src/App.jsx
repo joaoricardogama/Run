@@ -9,7 +9,8 @@ import LoadingSpinner from './components/LoadingSpinner'
 import Login from './pages/Login'
 import Register from './pages/Register'
 
-const Dashboard     = lazy(() => import('./pages/Dashboard'))
+const Dashboard       = lazy(() => import('./pages/Dashboard'))
+const StravaCallback  = lazy(() => import('./pages/StravaCallback'))
 const MyPlan        = lazy(() => import('./pages/athlete/MyPlan'))
 const MyRaces       = lazy(() => import('./pages/athlete/MyRaces'))
 const MyResults     = lazy(() => import('./pages/athlete/MyResults'))
@@ -51,6 +52,15 @@ export default function App() {
               <RequireAuth>
                 <Suspense fallback={<LoadingSpinner />}>
                   <Dashboard />
+                </Suspense>
+              </RequireAuth>
+            } />
+
+            {/* Strava OAuth callback */}
+            <Route path="/strava/callback" element={
+              <RequireAuth>
+                <Suspense fallback={<LoadingSpinner />}>
+                  <StravaCallback />
                 </Suspense>
               </RequireAuth>
             } />
