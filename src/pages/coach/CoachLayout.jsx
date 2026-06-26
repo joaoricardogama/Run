@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { Users, CalendarDays, BarChart3, ClipboardList, LogOut, LayoutGrid, Menu, X } from 'lucide-react'
+import { Users, CalendarDays, BarChart3, ClipboardList, LogOut, LayoutGrid, Menu, X, Activity } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 
 const NAV = [
   { to: '/coach/atletas',    icon: Users,         label: 'Atletas'    },
+  { to: '/coach/treinos',    icon: Activity,      label: 'Treinos'    },
   { to: '/coach/calendario', icon: LayoutGrid,    label: 'Calendário' },
   { to: '/coach/plano',      icon: ClipboardList, label: 'Plano Geral' },
   { to: '/coach/corridas',   icon: CalendarDays,  label: 'Corridas'   },

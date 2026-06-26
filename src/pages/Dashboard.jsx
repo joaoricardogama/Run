@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { Flame, Trophy, Users, ChevronRight, RefreshCw, Zap } from 'lucide-react'
 import LoadingSpinner from '../components/LoadingSpinner'
 import BottomNav from '../components/BottomNav'
+import WorkoutUpload from '../components/WorkoutUpload'
 
 const STRAVA_CLIENT_ID = '261127'
 const STRAVA_REDIRECT  = 'https://run-blush.vercel.app/strava/callback'
@@ -359,13 +360,33 @@ export default function Dashboard() {
           {/* Mark done / status */}
           <div style={{ marginTop: 10 }}>
             {!todayEntry ? (
-              <button onClick={markTodayDone} disabled={marking}
-                style={{ width: '100%', padding: '14px', borderRadius: 14, fontWeight: 800, fontSize: 14, border: 'none', cursor: 'pointer', background: 'var(--heh-green)', color: '#080808', opacity: marking ? 0.7 : 1, transition: 'opacity 0.15s' }}>
-                {marking ? 'A registar...' : '✓  Marcar treino de hoje'}
-              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <button onClick={markTodayDone} disabled={marking}
+                  style={{ width: '100%', padding: '14px', borderRadius: 14, fontWeight: 800, fontSize: 14, border: 'none', cursor: 'pointer', background: 'var(--heh-green)', color: '#080808', opacity: marking ? 0.7 : 1, transition: 'opacity 0.15s' }}>
+                  {marking ? 'A registar...' : '✓  Marcar treino de hoje'}
+                </button>
+                <WorkoutUpload athlete={athlete} date={today} onComplete={loadAthleteData} />
+              </div>
             ) : (
-              <div style={{ padding: '12px 16px', borderRadius: 14, textAlign: 'center', fontWeight: 700, fontSize: 13, background: todayEntry.confirmed_by_strava ? 'rgba(252,76,2,0.12)' : 'rgba(184,255,0,0.10)', color: todayEntry.confirmed_by_strava ? '#FC4C02' : 'var(--heh-green)' }}>
-                {todayEntry.confirmed_by_strava ? '🟠 Confirmado pelo Strava (+20 pts)' : `✓ Registado (+${todayEntry.points} pts)`}
+              <div>
+                <div style={{ padding: '12px 16px', borderRadius: 14, textAlign: 'center', fontWeight: 700, fontSize: 13, marginBottom: 8,
+                  background: todayEntry.source === 'screenshot' ? 'rgba(10,132,255,0.12)' : todayEntry.confirmed_by_strava ? 'rgba(252,76,2,0.12)' : 'rgba(184,255,0,0.10)',
+                  color: todayEntry.source === 'screenshot' ? '#0A84FF' : todayEntry.confirmed_by_strava ? '#FC4C02' : 'var(--heh-green)' }}>
+                  {todayEntry.source === 'screenshot' ? `📷 Confirmado por screenshot (+${todayEntry.points} pts)` :
+                   todayEntry.confirmed_by_strava ? '🟠 Confirmado pelo Strava (+20 pts)' : `✓ Registado (+${todayEntry.points} pts)`}
+                </div>
+                {/* Show summary if from screenshot */}
+                {todayEntry.source === 'screenshot' && todayEntry.ai_summary && (
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', padding: '0 4px', lineHeight: 1.5 }}>{todayEntry.ai_summary}</p>
+                )}
+                {todayEntry.source === 'screenshot' && todayEntry.distance_km && (
+                  <div style={{ display: 'flex', gap: 12, padding: '8px 4px', flexWrap: 'wrap' }}>
+                    {todayEntry.distance_km && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{todayEntry.distance_km} km</span>}
+                    {todayEntry.pace_avg && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>⏱ {todayEntry.pace_avg}</span>}
+                    {todayEntry.hr_avg && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>♥ {todayEntry.hr_avg} bpm</span>}
+                    {todayEntry.cadence_avg && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>↻ {todayEntry.cadence_avg} spm</span>}
+                  </div>
+                )}
               </div>
             )}
           </div>
