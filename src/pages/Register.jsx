@@ -183,8 +183,6 @@ p_pr_5km: pr5 || null,
 p_coach_id: form.coach_id || null,
 p_gdpr_consent: form.gdpr_consent,
 })
-p_gdpr_consent: form.gdpr_consent,  // FIX: campo em falta que causava falha no registo
-})
 if (insErr) {
 setError(`Erro ao criar perfil: ${insErr.message || insErr.details || insErr.code || 'Erro desconhecido'}`)
 setLoading(false)
