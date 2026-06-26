@@ -6,6 +6,7 @@ import Header from './components/Header'
 import BottomNav from './components/BottomNav'
 import LoadingSpinner from './components/LoadingSpinner'
 
+import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Register from './pages/Register'
 
@@ -43,8 +44,8 @@ export default function App() {
       <AuthProvider>
         <Suspense fallback={<LoadingSpinner />}>
           <Routes>
-            {/* Página inicial = login */}
-            <Route path="/"        element={<Login />} />
+            {/* Página inicial = landing */}
+            <Route path="/"        element={<Landing />} />
             <Route path="/login"   element={<Login />} />
             <Route path="/registo" element={<Register />} />
 

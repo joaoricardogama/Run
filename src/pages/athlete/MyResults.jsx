@@ -1,252 +1,135 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { supabase } from '../../lib/supabase'
-import { formatDate, formatTime, formatDistance, parseTime, calcPacePerKm } from '../../utils/pace'
-import { Plus, Upload, Link as LinkIcon, Trophy, X } from 'lucide-react'
 import LoadingSpinner from '../../components/LoadingSpinner'
+import { Trophy, Flame } from 'lucide-react'
 
-const inputStyle = {
-  background: 'var(--surface2)',
-  border: '1px solid var(--border)',
-  color: 'var(--text)',
-  borderRadius: 10,
-  padding: '10px 14px',
-  fontSize: 14,
-  width: '100%',
-  outline: 'none',
-}
+function toYMD(d) { return d.toISOString().split('T')[0] }
 
-function AddResultModal({ races, onClose, onSaved }) {
-  const { athlete } = useAuth()
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
-  const [distance, setDistance] = useState('')
-  const [timeStr, setTimeStr] = useState('')
-  const [notes, setNotes] = useState('')
-  const [raceId, setRaceId] = useState('')
-  const [stravaUrl, setStravaUrl] = useState('')
-  const [file, setFile] = useState(null)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-
-  async function handleSubmit(e) {
-    e.preventDefault()
-    const timeSeconds = parseTime(timeStr)
-    if (!timeSeconds) { setError('Formato de tempo inválido. Use MM:SS'); return }
-    const distKm = parseFloat(distance)
-    if (!distKm || distKm <= 0) { setError('Distância inválida'); return }
-
-    setSaving(true)
-    setError('')
-    let certificateUrl = null
-
-    if (file) {
-      const ext = file.name.split('.').pop()
-      const path = `${athlete.id}/${Date.now()}.${ext}`
-      const { error: upErr } = await supabase.storage.from('certificates').upload(path, file, { upsert: false })
-      if (upErr) { setError('Erro ao carregar ficheiro: ' + upErr.message); setSaving(false); return }
-      const { data: urlData } = supabase.storage.from('certificates').getPublicUrl(path)
-      certificateUrl = urlData?.publicUrl || null
-    }
-
-    const payload = {
-      athlete_id: athlete.id, race_id: raceId || null, date,
-      distance_km: distKm, time_seconds: timeSeconds,
-      notes: notes || null, certificate_url: certificateUrl, strava_url: stravaUrl || null,
-    }
-
-    const { data, error: insErr } = await supabase.from('results').insert(payload).select().single()
-    if (insErr) { setError('Erro ao guardar: ' + insErr.message) }
-    else { onSaved(data); onClose() }
-    setSaving(false)
-  }
-
-  const labelStyle = { display: 'block', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 6 }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.7)' }}>
-      <div className="w-full sm:max-w-md overflow-y-auto max-h-[90vh]"
-        style={{ background: 'var(--surface)', borderRadius: '20px 20px 0 0', borderTopLeftRadius: 20, borderTopRightRadius: 20 }}
-        className="sm:rounded-2xl">
-        <div className="flex items-center justify-between px-5 py-4"
-          style={{ borderBottom: '1px solid var(--border)' }}>
-          <h3 className="font-black text-base" style={{ color: 'var(--text)' }}>Registar Resultado</h3>
-          <button onClick={onClose} style={{ color: 'var(--text-muted)' }}><X size={20} /></button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label style={labelStyle}>Data</label>
-              <input type="date" value={date} onChange={e => setDate(e.target.value)} required style={inputStyle}
-                onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-                onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-            </div>
-            <div>
-              <label style={labelStyle}>Distância (km)</label>
-              <input type="number" step="0.01" min="0.1" value={distance} onChange={e => setDistance(e.target.value)}
-                required placeholder="10" style={inputStyle}
-                onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-                onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-            </div>
-          </div>
-
-          <div>
-            <label style={labelStyle}>Tempo (MM:SS)</label>
-            <input type="text" value={timeStr} onChange={e => setTimeStr(e.target.value)}
-              required placeholder="52:30" className="pace-mono" style={inputStyle}
-              onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-          </div>
-
-          <div>
-            <label style={labelStyle}>Corrida (opcional)</label>
-            <select value={raceId} onChange={e => setRaceId(e.target.value)} style={inputStyle}
-              onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-              onBlur={e => e.target.style.borderColor = 'var(--border)'}>
-              <option value="">— Nenhuma —</option>
-              {races.map(r => <option key={r.id} value={r.id}>{r.name} ({formatDate(r.date)})</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label style={labelStyle}>Notas</label>
-            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
-              placeholder="Como correu..." style={{ ...inputStyle, resize: 'none' }}
-              onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-          </div>
-
-          <div>
-            <label style={labelStyle}><LinkIcon size={11} className="inline mr-1" />URL Strava</label>
-            <input type="url" value={stravaUrl} onChange={e => setStravaUrl(e.target.value)}
-              placeholder="https://www.strava.com/activities/..." style={inputStyle}
-              onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-          </div>
-
-          <div>
-            <label style={labelStyle}><Upload size={11} className="inline mr-1" />Certificado</label>
-            <input type="file" accept=".pdf,image/*" onChange={e => setFile(e.target.files[0])}
-              style={{ color: 'var(--text-muted)', fontSize: 13 }} />
-          </div>
-
-          {error && (
-            <div className="rounded-xl px-4 py-3 text-sm font-medium"
-              style={{ background: 'rgba(255,69,58,0.12)', color: '#FF453A' }}>
-              {error}
-            </div>
-          )}
-
-          <button type="submit" disabled={saving}
-            className="w-full py-4 rounded-xl text-sm font-bold disabled:opacity-50"
-            style={{ background: 'var(--orange)', color: 'white' }}>
-            {saving ? 'A guardar...' : 'Guardar resultado'}
-          </button>
-        </form>
-      </div>
-    </div>
-  )
+function getWeekDates() {
+  const today = new Date()
+  const dow = today.getDay()
+  const mon = new Date(today)
+  mon.setDate(today.getDate() - ((dow + 6) % 7))
+  mon.setHours(0,0,0,0)
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(mon); d.setDate(mon.getDate() + i); return d
+  })
 }
 
 export default function MyResults() {
   const { athlete } = useAuth()
-  const [results, setResults] = useState([])
-  const [races, setRaces] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [showModal, setShowModal] = useState(false)
+  const [ranking,  setRanking]  = useState([])
+  const [myStats,  setMyStats]  = useState({ points: 0, completions: 0 })
+  const [loading,  setLoading]  = useState(true)
 
   useEffect(() => {
-    if (!athlete) return
+    if (!athlete?.group) return
+    const weekDates = getWeekDates()
+    const weekStart = toYMD(weekDates[0])
+    const weekEnd   = toYMD(weekDates[6])
+
     async function load() {
-      const [resRes, racesRes] = await Promise.all([
-        supabase.from('results').select('*, races(name, date)').eq('athlete_id', athlete.id).order('date', { ascending: false }),
-        supabase.from('races').select('id, name, date').order('date', { ascending: false }),
-      ])
-      if (resRes.data) setResults(resRes.data)
-      if (racesRes.data) setRaces(racesRes.data)
+      const { data: groupAthletes } = await supabase
+        .from('athletes').select('id,name,avatar_url').eq('group', athlete.group).eq('active', true)
+
+      if (!groupAthletes?.length) { setLoading(false); return }
+
+      const ids = groupAthletes.map(a => a.id)
+      const { data: comps } = await supabase
+        .from('training_completions').select('athlete_id,points')
+        .in('athlete_id', ids).gte('date', weekStart).lte('date', weekEnd)
+
+      const totals = {}; const counts = {}
+      ids.forEach(id => { totals[id] = 0; counts[id] = 0 })
+      ;(comps || []).forEach(c => { totals[c.athlete_id] += c.points; counts[c.athlete_id]++ })
+
+      const sorted = groupAthletes
+        .map(a => ({ ...a, points: totals[a.id] || 0, count: counts[a.id] || 0, isMe: a.id === athlete.id }))
+        .sort((a, b) => b.points - a.points)
+
+      setRanking(sorted)
+      const me = sorted.find(a => a.isMe)
+      if (me) setMyStats({ points: me.points, completions: me.count })
       setLoading(false)
     }
     load()
   }, [athlete])
 
-  if (!athlete) return null
   if (loading) return <LoadingSpinner />
 
+  const myRank = ranking.findIndex(a => a.isMe) + 1
+
   return (
-    <div className="max-w-2xl mx-auto px-4 pt-4 pb-28" style={{ background: 'var(--dark)', minHeight: '100vh' }}>
-      <div className="flex items-center justify-between mb-5">
-        <h2 className="text-xl font-black" style={{ color: 'var(--text)' }}>Os Meus Resultados</h2>
-        <button onClick={() => setShowModal(true)}
-          className="flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-full"
-          style={{ background: 'var(--orange)', color: 'white' }}>
-          <Plus size={16} /> Novo
-        </button>
-      </div>
+    <div style={{ minHeight: '100vh', background: 'var(--dark)', padding: '32px 0 24px' }}>
+      <div style={{ maxWidth: 560, margin: '0 auto', padding: '0 16px' }}>
 
-      {results.length === 0 ? (
-        <div className="text-center py-16">
-          <Trophy size={40} style={{ color: 'var(--text-muted)', margin: '0 auto 12px', opacity: 0.3 }} />
-          <p className="font-bold" style={{ color: 'var(--text)' }}>Sem resultados ainda</p>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Regista o teu primeiro resultado!</p>
+        {/* Header */}
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div style={{ width: 52, height: 52, borderRadius: 16, background: 'rgba(184,255,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+            <Trophy size={24} style={{ color: 'var(--heh-green)' }} />
+          </div>
+          <h1 style={{ fontWeight: 900, fontSize: 28, letterSpacing: '-0.04em', fontStyle: 'italic', color: 'var(--text)', marginBottom: 4 }}>
+            RANKING SEMANAL
+          </h1>
+          <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+            GRUPO {athlete?.group}
+          </p>
         </div>
-      ) : (
-        <div className="space-y-3">
-          {results.map(result => {
-            const pace = calcPacePerKm(result.time_seconds, result.distance_km)
-            return (
-              <div key={result.id} className="feed-card p-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-bold text-sm" style={{ color: 'var(--text)' }}>
-                      {formatDistance(result.distance_km)} km
-                      {result.races?.name && (
-                        <span className="font-normal ml-2" style={{ color: 'var(--text-muted)' }}>
-                          — {result.races.name}
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{formatDate(result.date)}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="pace-mono font-bold" style={{ color: 'var(--text)' }}>{formatTime(result.time_seconds)}</p>
-                    {pace && (
-                      <p className="pace-mono text-xs" style={{ color: 'var(--text-muted)' }}>{formatTime(Math.round(pace))}/km</p>
-                    )}
-                  </div>
-                </div>
 
-                {result.notes && (
-                  <p className="text-xs mt-2.5 pt-2.5" style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>
-                    {result.notes}
-                  </p>
-                )}
-
-                {(result.strava_url || result.certificate_url) && (
-                  <div className="flex gap-4 mt-2">
-                    {result.strava_url && (
-                      <a href={result.strava_url} target="_blank" rel="noopener noreferrer"
-                        className="text-xs font-bold" style={{ color: 'var(--orange)' }}>
-                        Strava →
-                      </a>
-                    )}
-                    {result.certificate_url && (
-                      <a href={result.certificate_url} target="_blank" rel="noopener noreferrer"
-                        className="text-xs font-bold" style={{ color: '#0A84FF' }}>
-                        Certificado →
-                      </a>
-                    )}
-                  </div>
-                )}
+        {/* My position highlight */}
+        {myRank > 0 && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 28 }}>
+            {[
+              { label: 'POSIÇÃO',   value: `#${myRank}`,          accent: myRank === 1 },
+              { label: 'PONTOS',    value: myStats.points,         accent: false },
+              { label: 'TREINOS',   value: myStats.completions,    accent: false },
+            ].map(({ label, value, accent }) => (
+              <div key={label} style={{ background: accent ? 'var(--heh-green)' : 'var(--surface)', borderRadius: 14, padding: '14px 10px', textAlign: 'center', border: accent ? 'none' : '1px solid var(--border)' }}>
+                <p style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: accent ? '#080808' : 'var(--text-muted)', marginBottom: 4 }}>{label}</p>
+                <p style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-0.03em', color: accent ? '#080808' : 'var(--text)' }}>{value}</p>
               </div>
-            )
-          })}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
 
-      {showModal && (
-        <AddResultModal races={races} onClose={() => setShowModal(false)} onSaved={r => setResults(p => [r, ...p])} />
-      )}
+        {/* Ranking list */}
+        <div style={{ background: 'var(--surface)', borderRadius: 16, border: '1px solid var(--border)', overflow: 'hidden' }}>
+          {ranking.map((a, i) => (
+            <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px', borderBottom: i < ranking.length - 1 ? '1px solid var(--border)' : 'none', background: a.isMe ? 'rgba(184,255,0,0.04)' : 'transparent' }}>
+              {/* Position */}
+              <span style={{ fontWeight: 900, fontSize: 18, width: 28, textAlign: 'center', color: i === 0 ? '#FFD60A' : i === 1 ? '#C0C0C0' : i === 2 ? '#CD7F32' : 'var(--text-muted)', flexShrink: 0 }}>
+                {i + 1}
+              </span>
+
+              {/* Avatar */}
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: a.isMe ? 'rgba(184,255,0,0.15)' : 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: a.isMe ? 'var(--heh-green)' : 'var(--text-muted)', flexShrink: 0, overflow: 'hidden' }}>
+                {a.avatar_url ? <img src={a.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : a.name.slice(0,2).toUpperCase()}
+              </div>
+
+              {/* Name + stats */}
+              <div style={{ flex: 1 }}>
+                <p style={{ fontWeight: a.isMe ? 800 : 600, fontSize: 15, color: a.isMe ? 'var(--heh-green)' : 'var(--text)', marginBottom: 2 }}>
+                  {a.name}{a.isMe ? ' (tu)' : ''}
+                </p>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>{a.count} treino{a.count !== 1 ? 's' : ''}</p>
+              </div>
+
+              {/* Points */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                <span style={{ fontWeight: 900, fontSize: 18, color: a.isMe ? 'var(--heh-green)' : 'var(--text)', letterSpacing: '-0.02em' }}>{a.points}</span>
+                <Flame size={14} style={{ color: a.isMe ? 'var(--heh-green)' : 'var(--text-muted)' }} />
+              </div>
+            </div>
+          ))}
+
+          {ranking.length === 0 && (
+            <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
+              Ainda sem dados para esta semana.
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
