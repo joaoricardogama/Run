@@ -282,13 +282,25 @@ export default function MyPlan() {
     if (!athlete) return
     setLoading(true)
     Promise.all([
+      // Plano individual para esta semana (prioritário)
+      supabase.from('athlete_weekly_plans').select('content,week_start,notes')
+        .eq('athlete_id', athlete.id).eq('week_start', weekStart)
+        .maybeSingle(),
+      // Plano de grupo (fallback)
       supabase.from('general_plans').select('content,week_start')
         .gte('week_start', weekStart).lte('week_start', weekEnd)
         .order('week_start', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('training_completions').select('date,points,confirmed_by_strava,source')
         .eq('athlete_id', athlete.id).gte('date', weekStart).lte('date', weekEnd),
-    ]).then(([{ data: planData }, { data: compData }]) => {
-      setPlan(planData)
+    ]).then(([{ data: indData }, { data: planData }, { data: compData }]) => {
+      // Se existe plano individual, converte para o mesmo formato do plano de grupo
+      if (indData?.content) {
+        // Individual plan content is already in {dayKey: sessions[]} format
+        // Convert to group plan format for compatibility: wrap in athlete.group key
+        setPlan({ ...indData, _isIndividual: true })
+      } else {
+        setPlan(planData)
+      }
       setCompletions(compData || [])
       setLoading(false)
     })
@@ -296,9 +308,11 @@ export default function MyPlan() {
 
   if (loading) return <LoadingSpinner />
 
-  const groupPlan    = plan?.content?.[athlete?.group] || {}
+  // Se plano individual, usa diretamente o content; senão usa o plano de grupo
+  const groupPlan    = plan?._isIndividual ? (plan.content || {}) : (plan?.content?.[athlete?.group] || {})
   const completedSet = new Set((completions || []).map(c => c.date))
   const stravaSet    = new Set((completions || []).filter(c => c.confirmed_by_strava || c.source === 'strava').map(c => c.date))
+  const isIndividual = !!plan?._isIndividual
 
   const totalSessions = weekDates.reduce((n, d) => {
     const dow = DAYS_KEY[d.getDay()]

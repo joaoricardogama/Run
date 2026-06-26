@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { generateIndividualPlan } from '../../utils/planGenerator'
-import { calculateZones, formatZoneRange, formatDate } from '../../utils/pace'
+import { formatDate } from '../../utils/pace'
 import { assignGroup } from '../../utils/groupAssignment'
 import SessionCard from '../../components/SessionCard'
 import LoadingSpinner from '../../components/LoadingSpinner'
@@ -14,11 +13,7 @@ const GROUPS = {
 
 const DAYS_PT = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo']
 
-const ZONE_CONFIG = [
-  { key: 'CCL', label: 'CCL', bg: 'rgba(48,209,88,0.12)', text: '#30D158' },
-  { key: 'CCN', label: 'CCN', bg: 'rgba(255,214,10,0.12)', text: '#FFD60A' },
-  { key: 'CCR', label: 'CCR', bg: 'rgba(255,69,58,0.12)', text: '#FF453A' },
-]
+
 
 function secsToStr(s) {
   if (!s) return ''
@@ -156,23 +151,74 @@ function AthleteFormModal({ athlete, coaches, onSave, onClose }) {
   )
 }
 
+// ─── Helpers de semana ────────────────────────────────────────
+const DAYS_KEY_ORDER = ['segunda','terça','quarta','quinta','sexta','sábado','domingo']
+const DAYS_DISPLAY   = ['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo']
+const SESSION_TYPES_IND = ['CCL','CCN','CCR','Pista','Subidas','Força','Descanso','Prova','Blocos']
+
+function getMondayOf(date) {
+  const d = new Date(date)
+  const dow = d.getDay()
+  d.setDate(d.getDate() - ((dow + 6) % 7))
+  d.setHours(0,0,0,0)
+  return d
+}
+function toYMD(d) { return d.toISOString().split('T')[0] }
+function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r }
+function fmtWeek(d) {
+  const end = addDays(d, 6)
+  return `${d.getDate()}/${d.getMonth()+1} – ${end.getDate()}/${end.getMonth()+1}`
+}
+
+// ─── Session editor (inline) ───────────────────────────────────
+const edInput = {
+  background: 'var(--surface)', border: '1px solid var(--border)',
+  color: 'var(--text)', borderRadius: 8, padding: '8px 12px',
+  fontSize: 13, width: '100%', boxSizing: 'border-box',
+}
+function SessionEditorInd({ session, onSave, onCancel }) {
+  const [form, setForm] = useState(session || { type: 'CCL', description: '', distance: '', pace: '', notes: '' })
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  return (
+    <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, marginTop: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+        <select value={form.type} onChange={e => set('type', e.target.value)} style={edInput}>
+          {SESSION_TYPES_IND.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <input value={form.distance || ''} onChange={e => set('distance', e.target.value ? Number(e.target.value) : '')}
+          type="number" min="0" step="0.5" placeholder="Distância (km)" style={edInput} />
+      </div>
+      <input value={form.description} onChange={e => set('description', e.target.value)}
+        placeholder="Descrição da sessão" style={{ ...edInput, marginBottom: 8 }} />
+      <input value={form.pace || ''} onChange={e => set('pace', e.target.value)}
+        placeholder="Ritmo (ex: 05:30-05:45/km)" style={{ ...edInput, fontFamily: 'monospace', marginBottom: 8 }} />
+      <input value={form.notes || ''} onChange={e => set('notes', e.target.value)}
+        placeholder="Notas adicionais" style={{ ...edInput, marginBottom: 10 }} />
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <button onClick={onCancel} style={{ fontSize: 13, padding: '6px 14px', borderRadius: 8, background: 'none', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer' }}>Cancelar</button>
+        <button onClick={() => onSave(form)} style={{ fontSize: 13, padding: '6px 14px', borderRadius: 8, background: 'var(--orange)', border: 'none', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Guardar</button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Vista do plano do atleta ──────────────────────────────────
 function AthletePlanView({ athlete }) {
   const [indPlan, setIndPlan] = useState(null)
   const [genPlan, setGenPlan] = useState(null)
-  const [generated, setGenerated] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
+      const weekStart = toYMD(getMondayOf(new Date()))
       const [iR, gR] = await Promise.all([
-        supabase.from('individual_plans').select('*').eq('athlete_id', athlete.id)
-          .order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('athlete_weekly_plans').select('*').eq('athlete_id', athlete.id)
+          .gte('week_start', weekStart).order('week_start').limit(1).maybeSingle(),
         supabase.from('general_plans').select('*')
           .order('week_start', { ascending: false }).limit(1).maybeSingle(),
       ])
-      if (iR.data) { setIndPlan(iR.data); setGenerated(generateIndividualPlan(athlete, iR.data.objective, iR.data.weeks || 3)) }
-      if (gR.data) setGenPlan(gR.data)
+      setIndPlan(iR.data)
+      setGenPlan(gR.data)
       setLoading(false)
     }
     load()
@@ -180,130 +226,200 @@ function AthletePlanView({ athlete }) {
 
   if (loading) return <LoadingSpinner />
 
-  const prSecs = indPlan ? (indPlan.objective === '5km' ? athlete.pr_5km : athlete.pr_10km) : null
-  const zones = prSecs ? calculateZones(prSecs, indPlan.objective === '5km' ? 5 : 10) : null
-
-  return (
-    <div>
-      <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 16 }}>
-        Exatamente o que <strong style={{ color: 'var(--text)' }}>{athlete.name}</strong> vê na app.
-      </p>
-      {zones && (
-        <div style={{ background: 'var(--surface2)', borderRadius: 14, padding: 16, marginBottom: 16 }}>
-          <p style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', marginBottom: 10 }}>Zonas — {indPlan.objective}</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
-            {ZONE_CONFIG.map(({ key, label, bg, text }) => (
-              <div key={key} style={{ background: bg, borderRadius: 10, padding: 10, textAlign: 'center' }}>
-                <p style={{ color: text, fontWeight: 800, fontSize: 11, marginBottom: 3 }}>{label}</p>
-                <p style={{ color: 'var(--text)', fontSize: 11, fontFamily: 'monospace' }}>{formatZoneRange(zones[key])}</p>
-              </div>
-            ))}
-          </div>
+  if (indPlan) {
+    const hasAnySessions = DAYS_KEY_ORDER.some(d => (indPlan.content[d] || []).length > 0)
+    return (
+      <div>
+        <div style={{ padding: '8px 14px', background: 'rgba(184,255,0,0.08)', borderRadius: 10, marginBottom: 16, fontSize: 13, color: 'var(--text-muted)', border: '1px solid rgba(184,255,0,0.2)' }}>
+          Plano individual · semana de {fmtWeek(new Date(indPlan.week_start + 'T00:00'))}
         </div>
-      )}
-      {indPlan && generated
-        ? generated.map(w => (
-          <div key={w.week} style={{ marginBottom: 20 }}>
-            <p style={{ color: 'var(--orange)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>{w.label}</p>
-            {w.days.map(({ day, session }) => <SessionCard key={day} session={session} day={day} />)}
-          </div>
-        ))
-        : genPlan
-          ? (
-            <>
-              <div style={{ background: 'var(--surface2)', borderRadius: 12, padding: '10px 14px', marginBottom: 12, fontSize: 13, color: 'var(--text-muted)' }}>
-                Plano do grupo <span style={{ color: 'var(--orange)', fontWeight: 700 }}>{athlete.group}</span> — sem plano individual.
-              </div>
-              <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 10 }}>Semana de {formatDate(genPlan.week_start)}</p>
-              {DAYS_PT.map(day => {
-                const sessions = genPlan.content?.[athlete.group]?.[day.toLowerCase()] || []
-                return sessions.length ? (
-                  <div key={day} style={{ marginBottom: 10 }}>
-                    {sessions.map((s, i) => <SessionCard key={i} session={s} day={day} />)}
-                  </div>
-                ) : null
-              })}
-            </>
+        {indPlan.notes && <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12, fontStyle: 'italic' }}>{indPlan.notes}</p>}
+        {DAYS_KEY_ORDER.map((dayKey, i) => {
+          const sessions = indPlan.content[dayKey] || []
+          return (
+            <div key={dayKey} style={{ marginBottom: 8 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>{DAYS_DISPLAY[i]}</p>
+              {sessions.length ? sessions.map((s, si) => <SessionCard key={si} session={s} day={DAYS_DISPLAY[i]} />)
+                : <p style={{ fontSize: 12, color: 'var(--border)', fontStyle: 'italic', paddingLeft: 4 }}>Descanso</p>}
+            </div>
           )
-          : <p style={{ color: 'var(--text-muted)', textAlign: 'center', paddingTop: 40 }}>Sem plano publicado.</p>
-      }
-    </div>
-  )
+        })}
+      </div>
+    )
+  }
+
+  if (genPlan) {
+    return (
+      <>
+        <div style={{ background: 'var(--surface2)', borderRadius: 12, padding: '10px 14px', marginBottom: 12, fontSize: 13, color: 'var(--text-muted)' }}>
+          Plano do grupo <span style={{ color: 'var(--orange)', fontWeight: 700 }}>{athlete.group}</span> — sem plano individual esta semana.
+        </div>
+        {DAYS_PT.map(day => {
+          const sessions = genPlan.content?.[athlete.group]?.[day.toLowerCase()] || []
+          return sessions.length ? (
+            <div key={day} style={{ marginBottom: 10 }}>
+              {sessions.map((s, i) => <SessionCard key={i} session={s} day={day} />)}
+            </div>
+          ) : null
+        })}
+      </>
+    )
+  }
+
+  return <p style={{ color: 'var(--text-muted)', textAlign: 'center', paddingTop: 40 }}>Sem plano publicado.</p>
 }
 
-// ─── Plano individual (coach cria/edita) ───────────────────────
+// ─── Editor de plano individual por semana ─────────────────────
 function IndividualPlanForm({ athlete, onSaved }) {
-  const [existing, setExisting] = useState(null)
-  const [objective, setObjective] = useState('10km')
-  const [weeks, setWeeks] = useState(4)
+  const [weekOffset, setWeekOffset] = useState(0)
+  const [content, setContent] = useState({})
+  const [notes, setNotes] = useState('')
+  const [existingId, setExistingId] = useState(null)
+  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [preview, setPreview] = useState(null)
   const [saved, setSaved] = useState(false)
+  const [addingDay, setAddingDay] = useState(null)
+  const [editingKey, setEditingKey] = useState(null) // `${day}:${idx}`
+
+  const monday = getMondayOf(addDays(new Date(), weekOffset * 7))
+  const weekStart = toYMD(monday)
 
   useEffect(() => {
-    supabase.from('individual_plans').select('*').eq('athlete_id', athlete.id)
-      .order('created_at', { ascending: false }).limit(1).maybeSingle()
-      .then(({ data }) => { if (data) { setExisting(data); setObjective(data.objective); setWeeks(data.weeks || 4) } })
-  }, [athlete.id])
+    setLoading(true)
+    setContent({})
+    setNotes('')
+    setExistingId(null)
+    setAddingDay(null)
+    setEditingKey(null)
+    supabase.from('athlete_weekly_plans').select('*')
+      .eq('athlete_id', athlete.id).eq('week_start', weekStart)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) { setContent(data.content || {}); setNotes(data.notes || ''); setExistingId(data.id) }
+        setLoading(false)
+      })
+  }, [athlete.id, weekStart])
+
+  function addSession(day, session) {
+    setContent(c => ({ ...c, [day]: [...(c[day] || []), session] }))
+    setAddingDay(null)
+  }
+  function updateSession(day, idx, session) {
+    setContent(c => { const days = [...(c[day] || [])]; days[idx] = session; return { ...c, [day]: days } })
+    setEditingKey(null)
+  }
+  function removeSession(day, idx) {
+    setContent(c => ({ ...c, [day]: (c[day] || []).filter((_, i) => i !== idx) }))
+  }
 
   async function handleSave() {
     setSaving(true)
-    const payload = { athlete_id: athlete.id, objective, weeks }
-    const res = existing
-      ? await supabase.from('individual_plans').update(payload).eq('id', existing.id)
-      : await supabase.from('individual_plans').insert(payload)
+    const payload = { athlete_id: athlete.id, week_start: weekStart, content, notes, updated_at: new Date().toISOString() }
+    const res = existingId
+      ? await supabase.from('athlete_weekly_plans').update(payload).eq('id', existingId)
+      : await supabase.from('athlete_weekly_plans').insert(payload).select().single()
     setSaving(false)
-    if (!res.error) { setSaved(true); setPreview(null); onSaved?.(); setTimeout(() => setSaved(false), 3000) }
+    if (!res.error) {
+      if (!existingId && res.data) setExistingId(res.data.id)
+      setSaved(true); onSaved?.()
+      setTimeout(() => setSaved(false), 3000)
+    }
   }
 
-  const Btn = ({ active, onClick, children }) => (
-    <button onClick={onClick} style={{ padding: '8px 18px', borderRadius: 10, border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer', background: active ? 'var(--orange)' : 'var(--surface2)', color: active ? '#fff' : 'var(--text-muted)' }}>
-      {children}
-    </button>
-  )
+  const TYPE_COLORS = { CCL:'#30D158', CCN:'#FFD60A', CCR:'#FF453A', Pista:'#0A84FF', Subidas:'#BF5AF2', Força:'#00D4FF', Descanso:'#555', Prova:'#FF2D55', Blocos:'#00D4FF' }
 
   return (
     <div>
-      {existing && (
-        <div style={{ padding: '10px 14px', background: 'rgba(255,107,53,0.1)', borderRadius: 12, marginBottom: 16, fontSize: 13, color: 'var(--text)' }}>
-          Plano atual: <strong>{existing.objective}</strong> · {existing.weeks} semanas
+      {/* Week navigator */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+        <button onClick={() => setWeekOffset(w => w - 1)}
+          style={{ padding: '7px 12px', borderRadius: 10, background: 'var(--surface2)', border: 'none', color: 'var(--text)', cursor: 'pointer', fontWeight: 700 }}>←</button>
+        <div style={{ flex: 1, textAlign: 'center' }}>
+          <p style={{ fontSize: 14, fontWeight: 800, color: weekOffset === 0 ? 'var(--heh-green,#B8FF00)' : 'var(--text)' }}>
+            {weekOffset === 0 ? 'Esta semana' : weekOffset === 1 ? 'Próxima semana' : weekOffset === -1 ? 'Semana passada' : `Semana ${weekOffset > 0 ? '+' : ''}${weekOffset}`}
+          </p>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{fmtWeek(monday)}</p>
+        </div>
+        <button onClick={() => setWeekOffset(w => w + 1)}
+          style={{ padding: '7px 12px', borderRadius: 10, background: 'var(--surface2)', border: 'none', color: 'var(--text)', cursor: 'pointer', fontWeight: 700 }}>→</button>
+      </div>
+
+      {existingId && (
+        <div style={{ padding: '6px 12px', background: 'rgba(184,255,0,0.08)', borderRadius: 8, marginBottom: 12, fontSize: 12, color: 'rgba(184,255,0,0.8)', border: '1px solid rgba(184,255,0,0.15)' }}>
+          ✓ Plano já existe para esta semana — a editar
         </div>
       )}
-      <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 8 }}>Objetivo</p>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        <Btn active={objective === '5km'} onClick={() => setObjective('5km')}>5km</Btn>
-        <Btn active={objective === '10km'} onClick={() => setObjective('10km')}>10km</Btn>
-      </div>
 
-      <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 8 }}>
-        Semanas: <strong style={{ color: 'var(--text)' }}>{weeks}</strong>
-      </p>
-      <input type="range" min={1} max={12} value={weeks} onChange={e => setWeeks(+e.target.value)}
-        style={{ width: '100%', marginBottom: 24, accentColor: 'var(--orange)' }} />
+      {loading ? <LoadingSpinner /> : (
+        <>
+          {/* Days */}
+          {DAYS_KEY_ORDER.map((dayKey, i) => {
+            const sessions = content[dayKey] || []
+            return (
+              <div key={dayKey} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
+                    {DAYS_DISPLAY[i]}
+                  </span>
+                  <button onClick={() => { setAddingDay(dayKey); setEditingKey(null) }}
+                    style={{ fontSize: 12, padding: '4px 10px', borderRadius: 8, background: 'var(--surface2)', border: 'none', color: 'var(--orange)', cursor: 'pointer', fontWeight: 700 }}>
+                    + Sessão
+                  </button>
+                </div>
 
-      {saved && <p style={{ color: '#30D158', fontSize: 13, marginBottom: 10 }}>✓ Plano guardado!</p>}
+                {sessions.map((s, idx) => {
+                  const key = `${dayKey}:${idx}`
+                  const color = TYPE_COLORS[s.type] || '#B8FF00'
+                  return editingKey === key ? (
+                    <SessionEditorInd key={key} session={s}
+                      onSave={updated => updateSession(dayKey, idx, updated)}
+                      onCancel={() => setEditingKey(null)} />
+                  ) : (
+                    <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: 'var(--surface2)', borderRadius: 10, marginBottom: 6, borderLeft: `3px solid ${color}` }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, color, background: color + '18', padding: '2px 7px', borderRadius: 6 }}>{s.type}</span>
+                          {s.distance && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{s.distance} km</span>}
+                          {s.pace && <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{s.pace}</span>}
+                        </div>
+                        {s.description && <p style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.description}</p>}
+                      </div>
+                      <button onClick={() => { setEditingKey(key); setAddingDay(null) }}
+                        style={{ fontSize: 11, padding: '4px 10px', borderRadius: 7, background: 'none', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer' }}>Editar</button>
+                      <button onClick={() => removeSession(dayKey, idx)}
+                        style={{ fontSize: 11, padding: '4px 8px', borderRadius: 7, background: 'rgba(255,69,58,0.1)', border: 'none', color: '#FF453A', cursor: 'pointer' }}>✕</button>
+                    </div>
+                  )
+                })}
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
-        <button onClick={() => setPreview(generateIndividualPlan(athlete, objective, weeks))}
-          style={{ flex: 1, padding: 11, background: 'var(--surface2)', border: 'none', borderRadius: 12, color: 'var(--text)', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
-          Pré-visualizar
-        </button>
-        <button onClick={handleSave} disabled={saving}
-          style={{ flex: 1, padding: 11, background: 'var(--orange)', border: 'none', borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
-          {saving ? 'A guardar…' : existing ? 'Atualizar' : 'Criar plano'}
-        </button>
-      </div>
+                {sessions.length === 0 && addingDay !== dayKey && (
+                  <p style={{ fontSize: 12, color: 'var(--border)', fontStyle: 'italic', paddingLeft: 4 }}>Descanso / sem sessão</p>
+                )}
 
-      {preview && (
-        <div>
-          <p style={{ color: 'var(--orange)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>Pré-visualização ({objective} · {weeks} sem.)</p>
-          {preview.map(w => (
-            <div key={w.week} style={{ marginBottom: 20 }}>
-              <p style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 600, marginBottom: 8 }}>{w.label}</p>
-              {w.days.map(({ day, session }) => <SessionCard key={day} session={session} day={day} />)}
-            </div>
-          ))}
-        </div>
+                {addingDay === dayKey && (
+                  <SessionEditorInd
+                    onSave={s => addSession(dayKey, s)}
+                    onCancel={() => setAddingDay(null)} />
+                )}
+              </div>
+            )
+          })}
+
+          {/* Notes */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Notas para o atleta (opcional)</label>
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
+              placeholder="Ex: Foca no ritmo de CCL, não forçar…"
+              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 10, padding: '10px 12px', fontSize: 13, resize: 'vertical' }} />
+          </div>
+
+          {saved && <p style={{ color: '#30D158', fontSize: 13, marginBottom: 10 }}>✓ Plano guardado!</p>}
+
+          <button onClick={handleSave} disabled={saving}
+            style={{ width: '100%', padding: 13, background: 'var(--orange)', border: 'none', borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 15, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+            {saving ? 'A guardar…' : existingId ? 'Atualizar plano' : 'Publicar plano'}
+          </button>
+        </>
       )}
     </div>
   )
