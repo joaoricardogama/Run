@@ -9,7 +9,7 @@ export default function BottomNav() {
   if (!user || isCoach) return null
 
   const links = [
-    { to: '/',           icon: Home,          label: 'Início' },
+    { to: '/dashboard',  icon: Home,          label: 'Início' },
     { to: '/plano',      icon: ClipboardList,  label: 'Plano' },
     { to: '/corridas',   icon: Calendar,       label: 'Corridas' },
     { to: '/resultados', icon: Trophy,         label: 'Resultados' },
@@ -21,7 +21,7 @@ export default function BottomNav() {
       style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
       <div className="max-w-2xl mx-auto flex justify-around">
         {links.map(({ to, icon: Icon, label }) => {
-          const active = to === '/' ? location.pathname === '/' : location.pathname.startsWith(to)
+          const active = location.pathname === to || (to !== '/dashboard' && location.pathname.startsWith(to))
           return (
             <NavLink key={to} to={to}
               className="flex flex-col items-center py-2.5 px-3 gap-0.5 relative"
