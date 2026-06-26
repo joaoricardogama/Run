@@ -41,9 +41,9 @@ onClick={() => onChange(selected ? value.filter(v => v !== opt) : [...value, opt
 style={{
 padding: '8px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600,
 textAlign: 'left', cursor: 'pointer', transition: 'all 0.15s',
-background: selected ? 'rgba(252,76,2,0.15)' : 'var(--surface2)',
-color: selected ? 'var(--orange)' : 'var(--text-muted)',
-border: selected ? '1px solid rgba(252,76,2,0.4)' : '1px solid var(--border)',
+background: selected ? 'rgba(184,255,0,0.12)' : 'var(--surface2)',
+color: selected ? 'var(--heh-green)' : 'var(--text-muted)',
+border: selected ? '1px solid rgba(184,255,0,0.35)' : '1px solid var(--border)',
 }}>
 {selected ? '✓ ' : ''}{opt}
 </button>
@@ -249,7 +249,7 @@ style={{ background: 'var(--orange)' }}>
 </svg>
 </div>
 <h1 className="text-2xl font-black" style={{ color: 'var(--text)' }}>
-Criar conta <span style={{ color: 'var(--orange)' }}>RunTejo</span>
+Criar conta <span style={{ color: 'var(--heh-green)' }}>HéH</span>
 </h1>
 <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>v4</p>
 </div>
@@ -322,9 +322,9 @@ onBlur={e => e.target.style.borderColor = 'var(--border)'} />
 <button key={v} type="button" onClick={() => set('sex', v)}
 className="flex-1 py-3 rounded-xl text-sm font-bold transition-all"
 style={{
-background: form.sex === v ? 'rgba(252,76,2,0.15)' : 'var(--surface2)',
-color: form.sex === v ? 'var(--orange)' : 'var(--text-muted)',
-border: form.sex === v ? '1px solid rgba(252,76,2,0.4)' : '1px solid var(--border)',
+background: form.sex === v ? 'rgba(184,255,0,0.12)' : 'var(--surface2)',
+color: form.sex === v ? 'var(--heh-green)' : 'var(--text-muted)',
+border: form.sex === v ? '1px solid rgba(184,255,0,0.35)' : '1px solid var(--border)',
 }}>{l}</button>
 ))}
 </div>
@@ -424,11 +424,11 @@ coaches.map(coach => (
 onClick={() => set('coach_id', coach.id)}
 className="w-full flex items-center gap-4 p-4 rounded-2xl text-left transition-all"
 style={{
-background: form.coach_id === coach.id ? 'rgba(252,76,2,0.12)' : 'var(--surface)',
-border: form.coach_id === coach.id ? '1px solid rgba(252,76,2,0.4)' : '1px solid var(--border)',
+background: form.coach_id === coach.id ? 'rgba(184,255,0,0.10)' : 'var(--surface)',
+border: form.coach_id === coach.id ? '1px solid rgba(184,255,0,0.35)' : '1px solid var(--border)',
 }}>
 <div className="w-12 h-12 rounded-xl flex items-center justify-center font-black text-lg flex-shrink-0"
-style={{ background: 'rgba(252,76,2,0.15)', color: 'var(--orange)' }}>
+style={{ background: 'rgba(184,255,0,0.12)', color: 'var(--heh-green)' }}>
 {coach.name.charAt(0)}
 </div>
 <div className="flex-1">
@@ -491,7 +491,7 @@ className="mt-0.5 flex-shrink-0" style={{ accentColor: 'var(--orange)', width: 1
 Consentimento de utilização de dados
 </p>
 <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-Autorizo o Run Tejo a recolher e tratar os meus dados pessoais (nome, email, NIF, data de nascimento, localização e dados desportivos) exclusivamente para fins de gestão de treinos, comunicação e análise de desempenho desportivo, em conformidade com o{' '}
+Autorizo a Hoje é Hoje a recolher e tratar os meus dados pessoais (nome, email, NIF, data de nascimento, localização e dados desportivos) exclusivamente para fins de gestão de treinos, comunicação e análise de desempenho desportivo, em conformidade com o{' '}
 <strong style={{ color: 'var(--text)' }}>Regulamento (UE) 2016/679 (RGPD)</strong> e a{' '}
 <strong style={{ color: 'var(--text)' }}>Lei n.º 58/2019</strong>. Os dados não serão partilhados com terceiros sem consentimento explícito. Posso exercer os meus direitos de acesso, retificação e eliminação através do contacto com o clube.
 </p>

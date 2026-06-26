@@ -30,17 +30,19 @@ export default function Login() {
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
         {/* Logo */}
         <div className="mb-10 text-center">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
-            style={{ background: 'var(--orange)' }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
-              <path d="M13.49 5.48c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm-3.6 13.9l1-4.4 2.1 2v6h2v-7.5l-2.1-2 .6-3c1.3 1.5 3.3 2.5 5.5 2.5v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1l-5.2 2.2v4.7h2v-3.4l1.8-.7-1.6 8.1-4.9-1-.4 2 7 1.4z"/>
-            </svg>
+          {/* HéH mark */}
+          <div className="mx-auto mb-5 relative inline-flex items-center justify-center">
+            <div className="w-20 h-20 rounded-2xl flex items-center justify-center"
+              style={{ background: 'var(--heh-green)', boxShadow: '0 0 40px rgba(184,255,0,0.3)' }}>
+              <span className="font-black text-3xl tracking-tight" style={{ color: '#080808', letterSpacing: '-0.04em', lineHeight: 1 }}>HéH</span>
+            </div>
+            <span className="absolute -top-1 -right-1 text-xs" style={{ color: 'var(--heh-green)' }}>✦</span>
           </div>
-          <h1 className="text-3xl font-black tracking-tight" style={{ color: 'var(--text)' }}>
-            Run<span style={{ color: 'var(--orange)' }}>Tejo</span>
+          <h1 className="text-4xl font-black tracking-tight mb-1" style={{ color: 'var(--text)', letterSpacing: '-0.04em' }}>
+            Hoje é Hoje
           </h1>
-          <p className="text-sm mt-1 font-medium" style={{ color: 'var(--text-muted)' }}>
-            A tua plataforma de treino
+          <p className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.2em' }}>
+            CORRE · VIVE · REPETE
           </p>
         </div>
 
@@ -62,7 +64,7 @@ export default function Login() {
                 border: '1px solid var(--border)',
                 color: 'var(--text)',
               }}
-              onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+              onFocus={e => e.target.style.borderColor = 'var(--heh-green)'}
               onBlur={e => e.target.style.borderColor = 'var(--border)'}
             />
           </div>
@@ -83,7 +85,7 @@ export default function Login() {
                 border: '1px solid var(--border)',
                 color: 'var(--text)',
               }}
-              onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+              onFocus={e => e.target.style.borderColor = 'var(--heh-green)'}
               onBlur={e => e.target.style.borderColor = 'var(--border)'}
             />
           </div>

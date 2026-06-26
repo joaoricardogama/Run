@@ -57,8 +57,8 @@ function CoachDashboard({ athleteCount, navigate, signOut }) {
           </div>
           <h1 className="text-2xl font-black" style={{ color: 'var(--text)' }}>João Gama</h1>
           <span className="mt-1.5 text-xs font-bold px-3 py-1 rounded-full"
-            style={{ background: 'rgba(252,76,2,0.15)', color: 'var(--orange)' }}>
-            Treinador RunTejo
+            style={{ background: 'rgba(184,255,0,0.12)', color: 'var(--heh-green)' }}>
+            Treinador HéH
           </span>
         </div>
         <div className="rounded-2xl mb-4 grid grid-cols-2" style={{ background: 'var(--surface)' }}>
@@ -278,7 +278,7 @@ export default function Dashboard() {
           <h1 className="text-2xl font-black" style={{ color: 'var(--text)' }}>{athlete?.name || user?.email}</h1>
           {athlete?.group && (
             <span className="mt-1.5 text-xs font-bold px-3 py-1 rounded-full"
-              style={{ background: 'rgba(252,76,2,0.15)', color: 'var(--orange)' }}>
+              style={{ background: 'rgba(184,255,0,0.12)', color: 'var(--heh-green)' }}>
               Grupo {athlete.group}
             </span>
           )}
@@ -352,8 +352,8 @@ export default function Dashboard() {
                   <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>{DAYS[i]}</span>
                   <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold relative"
                     style={{
-                      background: done ? (strava ? '#FC4C02' : 'var(--orange)') : isToday ? 'rgba(252,76,2,0.15)' : 'var(--dark)',
-                      border: isToday && !done ? '2px solid var(--orange)' : '2px solid transparent',
+                      background: done ? (strava ? '#FC4C02' : 'var(--heh-green)') : isToday ? 'rgba(184,255,0,0.15)' : 'var(--dark)',
+                      border: isToday && !done ? '2px solid var(--heh-green)' : '2px solid transparent',
                       color: done ? 'white' : isPast ? 'var(--text-muted)' : 'var(--border)',
                     }}>
                     {done
@@ -448,8 +448,8 @@ export default function Dashboard() {
         ) : (
           <div className="w-full py-3.5 rounded-2xl text-center text-sm font-bold mb-4"
             style={{
-              background: todayEntry.confirmed_by_strava ? 'rgba(252,76,2,0.12)' : 'rgba(48,209,88,0.12)',
-              color: todayEntry.confirmed_by_strava ? '#FC4C02' : '#30D158',
+              background: todayEntry.confirmed_by_strava ? 'rgba(252,76,2,0.12)' : 'rgba(184,255,0,0.12)',
+              color: todayEntry.confirmed_by_strava ? '#FC4C02' : 'var(--heh-green)',
             }}>
             {todayEntry.confirmed_by_strava ? '🟠 Confirmado pelo Strava (+20 pts)' : '✓ Treino registado (+10 pts)'}
           </div>

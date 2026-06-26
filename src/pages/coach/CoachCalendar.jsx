@@ -220,8 +220,8 @@ function DropCell({ sessions = [], rowKey, day, dragging, onDrop, onAdd, onEdit,
       <div
         className="min-h-20 rounded-lg p-1 transition-all"
         style={{
-          background: over ? 'rgba(252,76,2,0.06)' : 'transparent',
-          border:     over ? '1.5px dashed rgba(252,76,2,0.4)' : '1.5px solid transparent',
+          background: over ? 'rgba(184,255,0,0.06)' : 'transparent',
+          border:     over ? '1.5px dashed rgba(184,255,0,0.4)' : '1.5px solid transparent',
         }}
         onDragOver={e => { e.preventDefault(); setOver(true) }}
         onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setOver(false) }}
@@ -742,9 +742,9 @@ export default function CoachCalendar() {
                   onClick={() => setHasRace(v)}
                   className="flex-1 p-3 rounded-xl text-sm font-bold text-left"
                   style={{
-                    background: hasRace === v ? 'rgba(252,76,2,0.15)' : 'var(--surface2)',
-                    color:      hasRace === v ? 'var(--orange)'        : 'var(--text-muted)',
-                    border:     hasRace === v ? '1px solid rgba(252,76,2,0.4)' : '1px solid var(--border)',
+                    background: hasRace === v ? 'rgba(184,255,0,0.12)' : 'var(--surface2)',
+                    color:      hasRace === v ? 'var(--heh-green)'     : 'var(--text-muted)',
+                    border:     hasRace === v ? '1px solid rgba(184,255,0,0.35)' : '1px solid var(--border)',
                   }}
                 >
                   <p>{l}</p>

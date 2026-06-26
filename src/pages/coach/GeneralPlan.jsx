@@ -185,9 +185,9 @@ export default function GeneralPlan() {
                 <button key={String(v)} type="button" onClick={() => setHasRace(v)}
                   className="flex-1 p-3 rounded-xl text-sm font-bold text-left transition-all"
                   style={{
-                    background: hasRace === v ? 'rgba(252,76,2,0.15)' : 'var(--surface2)',
-                    color: hasRace === v ? 'var(--orange)' : 'var(--text-muted)',
-                    border: hasRace === v ? '1px solid rgba(252,76,2,0.4)' : '1px solid var(--border)',
+                    background: hasRace === v ? 'rgba(184,255,0,0.12)' : 'var(--surface2)',
+                    color: hasRace === v ? 'var(--heh-green)' : 'var(--text-muted)',
+                    border: hasRace === v ? '1px solid rgba(184,255,0,0.35)' : '1px solid var(--border)',
                   }}>
                   <p>{l}</p>
                   <p className="text-xs font-normal mt-0.5" style={{ color: 'var(--text-muted)' }}>{desc}</p>

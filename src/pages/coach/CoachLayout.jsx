@@ -39,7 +39,7 @@ export default function CoachLayout() {
                 `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${isActive ? 'active' : ''}`
               }
               style={({ isActive }) => ({
-                background: isActive ? 'rgba(252,76,2,0.12)' : 'transparent',
+                background: isActive ? 'rgba(184,255,0,0.10)' : 'transparent',
                 color: isActive ? 'var(--orange)' : 'var(--text-muted)',
                 fontWeight: isActive ? 700 : 500,
               })}>
