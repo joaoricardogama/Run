@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { parseTime } from '../utils/pace'
 import { assignGroup } from '../utils/groupAssignment'
 import { AlertCircle, ChevronLeft, Check } from 'lucide-react'
 
@@ -9,37 +8,27 @@ const STRAVA_REGISTER_URL = `https://www.strava.com/oauth/authorize?client_id=26
 
 const COUNTRIES = [
   'Portugal','Brasil','Angola','Moçambique','Cabo Verde','Guiné-Bissau',
-  'São Tomé e Príncipe','Timor-Leste','Espanha','França','Alemanha',
-  'Reino Unido','Itália','Holanda','Bélgica','Suíça','Suécia','Noruega',
+  'Espanha','França','Alemanha','Reino Unido','Itália','Suíça','Suécia',
   'Estados Unidos','Canadá','Outro',
 ]
 
 const EVENT_GROUPS = [
-  {
-    label: 'Estrada',
-    events: ['5k','10k','Meia Maratona','Maratona'],
-  },
-  {
-    label: 'Trail',
-    events: ['Trail Curto','Trail Médio','Ultra Trail'],
-  },
-  {
-    label: 'Pista',
-    events: ['100m','200m','400m','800m','1500m','3000m','5000m','10000m'],
-  },
-  {
-    label: 'Campo',
-    events: ['Salto em Comprimento','Salto em Altura','Salto com Vara','Triplo Salto','Lançamento do Dardo','Lançamento do Martelo','Lançamento do Disco','Lançamento do Peso'],
-  },
+  { label: 'Estrada',    events: ['5k','10k','Meia Maratona','Maratona'] },
+  { label: 'Trail',      events: ['Trail Curto','Trail Médio','Ultra Trail'] },
+  { label: 'Pista',      events: ['100m','200m','400m','800m','1500m','3000m','5000m','10000m'] },
+  { label: 'Campo',      events: ['Salto em Comprimento','Salto em Altura','Salto com Vara','Triplo Salto','Lançamento do Dardo','Lançamento do Martelo','Lançamento do Disco','Lançamento do Peso'] },
 ]
 
 const RUNNING_EVENTS = ['5k','10k','Meia Maratona','Maratona','Trail Curto','Trail Médio','Ultra Trail','800m','1500m','3000m','5000m','10000m']
 
-const GOALS = [
-  { id: 'improve',  label: 'Melhorar os meus tempos',    icon: '⏱' },
-  { id: 'compete',  label: 'Competir a alto nível',       icon: '🏆' },
-  { id: 'health',   label: 'Manter-me saudável',          icon: '💚' },
-]
+const GROUP_INFO = {
+  G1: { label: 'Elite', color: '#30D158' },
+  G2: { label: 'Avançado', color: '#0A84FF' },
+  G3: { label: 'Intermédio+', color: '#FFD60A' },
+  G4: { label: 'Intermédio', color: '#FF9F0A' },
+  G5: { label: 'Iniciante+', color: '#FF6B35' },
+  G6: { label: 'Iniciante', color: '#BF5AF2' },
+}
 
 function StravaIcon({ size = 16 }) {
   return (
@@ -49,25 +38,110 @@ function StravaIcon({ size = 16 }) {
   )
 }
 
-const s = {
-  input: {
-    width: '100%', background: 'var(--surface2)',
-    border: '1px solid var(--border)', borderRadius: 14,
-    padding: '14px 16px', fontSize: 15, color: 'var(--text)', outline: 'none',
-  },
-  label: {
-    display: 'block', fontSize: 11, fontWeight: 700,
-    textTransform: 'uppercase', letterSpacing: '0.08em',
-    color: 'var(--text-muted)', marginBottom: 8,
-  },
+// ── Time Picker (cronómetro estilo) ──────────────────────────────
+function TimePicker({ minutes, seconds, onChange }) {
+  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)) }
+  function setMin(v) { onChange(clamp(v, 0, 99), seconds) }
+  function setSec(v) { onChange(minutes, clamp(v, 0, 59)) }
+
+  const btnStyle = (active) => ({
+    width: 44, height: 44, borderRadius: 12, border: 'none', cursor: 'pointer',
+    background: 'var(--surface3)', color: 'var(--text)', fontSize: 22, fontWeight: 700,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
+  })
+
+  const numStyle = {
+    fontSize: 56, fontWeight: 900, color: 'var(--text)',
+    letterSpacing: '-0.04em', fontVariantNumeric: 'tabular-nums',
+    minWidth: 80, textAlign: 'center', lineHeight: 1,
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+      {/* Minutos */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+        <button style={btnStyle()} onPointerDown={() => setMin(minutes + 1)}>+</button>
+        <div>
+          <div style={numStyle}>{String(minutes).padStart(2,'0')}</div>
+          <div style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: 4 }}>min</div>
+        </div>
+        <button style={btnStyle()} onPointerDown={() => setMin(minutes - 1)}>−</button>
+      </div>
+
+      {/* Separador */}
+      <div style={{ fontSize: 48, fontWeight: 900, color: 'var(--text-muted)', marginBottom: 24, lineHeight: 1 }}>:</div>
+
+      {/* Segundos */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+        <button style={btnStyle()} onPointerDown={() => setSec(seconds + 1)}>+</button>
+        <div>
+          <div style={numStyle}>{String(seconds).padStart(2,'0')}</div>
+          <div style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: 4 }}>seg</div>
+        </div>
+        <button style={btnStyle()} onPointerDown={() => setSec(seconds - 1)}>−</button>
+      </div>
+    </div>
+  )
 }
+
+// ── Wrapper com fade/slide animado ────────────────────────────────
+function AnimatedQ({ children, qKey }) {
+  const [visible, setVisible] = useState(false)
+  const prev = useRef(qKey)
+
+  useEffect(() => {
+    if (prev.current !== qKey) { setVisible(false); setTimeout(() => { prev.current = qKey; setVisible(true) }, 80) }
+    else setVisible(true)
+  }, [qKey])
+
+  return (
+    <div style={{ transition: 'opacity 0.25s, transform 0.25s', opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(12px)' }}>
+      {children}
+    </div>
+  )
+}
+
+// ── Opção grande seleccionável ────────────────────────────────────
+function BigOption({ label, sub, selected, onSelect }) {
+  return (
+    <button type="button" onClick={onSelect}
+      style={{
+        width: '100%', padding: '16px 18px', borderRadius: 16, textAlign: 'left', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        background: selected ? 'rgba(184,255,0,0.10)' : 'var(--surface)',
+        border: selected ? '2px solid rgba(184,255,0,0.5)' : '1.5px solid var(--border)',
+        transition: 'all 0.15s',
+      }}>
+      <div>
+        <p style={{ fontWeight: 700, fontSize: 15, color: selected ? 'var(--heh-green)' : 'var(--text)' }}>{label}</p>
+        {sub && <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{sub}</p>}
+      </div>
+      {selected && <Check size={16} style={{ color: 'var(--heh-green)', flexShrink: 0 }} />}
+    </button>
+  )
+}
+
+const inputStyle = {
+  width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)',
+  borderRadius: 14, padding: '14px 16px', fontSize: 15, color: 'var(--text)', outline: 'none',
+  boxSizing: 'border-box',
+}
+const labelStyle = {
+  display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+  letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 8,
+}
+
+// Sub-passos do passo 2 (pergunta a pergunta)
+const SUB_STEPS = ['experience', 'goal', 'events', 'time']
 
 export default function Register() {
   const navigate = useNavigate()
-  const [step, setStep]   = useState(1)
-  const [error, setError] = useState('')
-  const [loading, setLoading]     = useState(false)
-  const [coaches, setCoaches]     = useState([])
+  const [step, setStep]       = useState(1)
+  const [subStep, setSubStep] = useState(0)  // só usado no passo 2
+  const [error, setError]     = useState('')
+  const [loading, setLoading] = useState(false)
+  const [coaches, setCoaches] = useState([])
   const [stravaPrefill, setStravaPrefill] = useState(null)
 
   const [form, setForm] = useState({
@@ -76,7 +150,7 @@ export default function Register() {
     experience: '',
     events: [],
     goal: '',
-    pr_10km: '',
+    pr_min: 45, pr_sec: 0,
     no_pr: false,
     coach_id: '',
     gdpr_consent: false,
@@ -87,65 +161,73 @@ export default function Register() {
     if (prefill) {
       const p = JSON.parse(prefill)
       setStravaPrefill(p)
-      setForm(f => ({
-        ...f,
-        name: p.name || '',
-        sex: p.sex === 'M' ? 'M' : p.sex === 'F' ? 'F' : '',
-      }))
+      setForm(f => ({ ...f, name: p.name || '', sex: p.sex === 'M' ? 'M' : p.sex === 'F' ? 'F' : '' }))
     }
     supabase.from('athletes').select('id,name,email').eq('is_coach', true)
       .then(({ data }) => { if (data) setCoaches(data) })
   }, [])
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
-
   function toggleEvent(ev) {
     setForm(f => ({
-      ...f,
-      events: f.events.includes(ev) ? f.events.filter(e => e !== ev) : [...f.events, ev],
+      ...f, events: f.events.includes(ev) ? f.events.filter(e => e !== ev) : [...f.events, ev],
     }))
   }
 
   const hasRunningEvent = form.events.some(e => RUNNING_EVENTS.includes(e))
-  const needsPR = form.experience === 'runner' && hasRunningEvent
+  const isRunner = form.experience === 'runner'
 
-  // Validate each step
-  const canAdvance = [
-    null,
-    form.name && form.sex && form.date_of_birth && form.country && form.email && form.password.length >= 6,
-    form.experience && form.goal && (form.experience === 'beginner' || form.events.length > 0),
-    form.gdpr_consent,
-  ]
+  // Calcula o grupo em tempo real baseado no tempo 10k
+  const pr10Seconds = form.pr_min * 60 + form.pr_sec
+  const liveGroup = form.no_pr || !isRunner
+    ? 'G6'
+    : (assignGroup(form.sex, pr10Seconds) || 'G6')
+
+  // Sequência de sub-perguntas no passo 2
+  const subFlow = ['experience', 'goal']
+  if (isRunner) subFlow.push('events')
+  if (isRunner && (hasRunningEvent || form.events.length === 0)) subFlow.push('time')
+
+  const currentSub = subFlow[subStep] || 'time'
+
+  function advanceSub() {
+    if (subStep < subFlow.length - 1) {
+      setSubStep(s => s + 1)
+    } else {
+      setStep(3)
+      setSubStep(0)
+    }
+  }
+
+  function canAdvanceSub() {
+    if (currentSub === 'experience') return !!form.experience
+    if (currentSub === 'goal')       return !!form.goal
+    if (currentSub === 'events')     return form.events.length > 0
+    if (currentSub === 'time')       return true
+    return false
+  }
+
+  const step1Valid = form.name && form.sex && form.date_of_birth && form.country && form.email && form.password.length >= 6
 
   async function handleSubmit() {
     setError('')
     setLoading(true)
     try {
-      // Sign up
-      const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
-        email: form.email, password: form.password,
-      })
+      const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({ email: form.email, password: form.password })
       let session = signUpData?.session
 
       if (signUpErr?.message?.includes('already registered')) {
-        const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
-          email: form.email, password: form.password,
-        })
-        if (signInErr || !signInData.session) {
-          setError('Email já registado. Confirma o email ou usa outra password.')
-          setLoading(false)
-          return
-        }
+        const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email: form.email, password: form.password })
+        if (signInErr || !signInData.session) { setError('Email já registado. Verifica a password.'); setLoading(false); return }
         session = signInData.session
       }
 
       await supabase.auth.setSession(session)
 
-      // Compute group
-      const pr10 = form.no_pr ? null : parseTime(form.pr_10km)
-      const group = form.experience === 'beginner' || (!pr10 && !hasRunningEvent)
+      const pr10 = form.no_pr ? null : pr10Seconds
+      const group = form.experience === 'beginner' || form.experience === 'walker'
         ? 'G6'
-        : assignGroup(form.sex, pr10) || 'G6'
+        : (assignGroup(form.sex, pr10) || 'G6')
 
       const { error: insErr } = await supabase.rpc('register_athlete', {
         p_name:           form.name,
@@ -165,18 +247,14 @@ export default function Register() {
         p_gdpr_consent:   form.gdpr_consent,
       })
 
-      if (insErr) {
-        setError('Erro ao criar perfil: ' + (insErr.message || insErr.code))
-        setLoading(false)
-        return
-      }
+      if (insErr) { setError('Erro ao criar perfil: ' + (insErr.message || insErr.code)); setLoading(false); return }
 
       if (stravaPrefill?.access_token) {
         await supabase.from('athletes').update({
-          avatar_url:              stravaPrefill.avatar_url,
-          strava_athlete_id:       stravaPrefill.strava_athlete_id,
-          strava_access_token:     stravaPrefill.access_token,
-          strava_refresh_token:    stravaPrefill.refresh_token,
+          avatar_url: stravaPrefill.avatar_url,
+          strava_athlete_id: stravaPrefill.strava_athlete_id,
+          strava_access_token: stravaPrefill.access_token,
+          strava_refresh_token: stravaPrefill.refresh_token,
           strava_token_expires_at: stravaPrefill.expires_at,
         }).eq('email', form.email)
         sessionStorage.removeItem('strava_prefill')
@@ -189,97 +267,71 @@ export default function Register() {
     }
   }
 
-  const TOTAL = 3
-
+  // ── Render ──────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: 'var(--dark)' }}>
-      <div className="max-w-sm w-full mx-auto px-5 pt-8 pb-24 flex-1">
+    <div style={{ minHeight: '100dvh', background: 'var(--dark)', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ maxWidth: 420, width: '100%', margin: '0 auto', padding: '0 20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
 
         {/* Header */}
-        <div className="flex items-center gap-3 mb-8">
-          {step > 1 ? (
-            <button onClick={() => setStep(s => s - 1)}
-              className="w-9 h-9 rounded-xl flex items-center justify-center"
-              style={{ background: 'var(--surface2)' }}>
-              <ChevronLeft size={18} style={{ color: 'var(--text-muted)' }} />
-            </button>
-          ) : (
-            <Link to="/" className="w-9 h-9 rounded-xl flex items-center justify-center"
-              style={{ background: 'var(--surface2)' }}>
-              <ChevronLeft size={18} style={{ color: 'var(--text-muted)' }} />
-            </Link>
-          )}
-          <div className="flex-1">
-            <div className="flex gap-1.5">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingTop: 40, paddingBottom: 28 }}>
+          <button onClick={() => {
+            if (step === 2 && subStep > 0) setSubStep(s => s - 1)
+            else if (step > 1) { setStep(s => s - 1); setSubStep(0) }
+            else navigate('/')
+          }}
+            style={{ width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface2)', border: 'none', cursor: 'pointer', flexShrink: 0 }}>
+            <ChevronLeft size={18} style={{ color: 'var(--text-muted)' }} />
+          </button>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', gap: 5 }}>
               {[1,2,3].map(i => (
-                <div key={i} className="h-1 rounded-full flex-1 transition-all duration-300"
-                  style={{ background: i <= step ? 'var(--heh-green)' : 'var(--surface3)' }} />
+                <div key={i} style={{ height: 3, flex: 1, borderRadius: 4, background: i <= step ? 'var(--heh-green)' : 'var(--surface3)', transition: 'background 0.3s' }} />
               ))}
             </div>
-            <p className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>
-              Passo {step} de {TOTAL}
-            </p>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>Passo {step} de 3</p>
           </div>
-          <div className="flex items-center gap-1">
-            <span className="font-black text-lg" style={{ color: 'var(--text)', letterSpacing: '-0.03em' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+            <span style={{ fontWeight: 900, fontSize: 18, color: 'var(--text)', letterSpacing: '-0.03em' }}>
               H<span style={{ color: 'var(--heh-green)' }}>é</span>H
             </span>
             <span style={{ color: 'var(--heh-green)', fontSize: 9 }}>✦</span>
           </div>
         </div>
 
-        {/* ── STEP 1: QUEM ÉS TU ── */}
+        {/* ── PASSO 1: QUEM ÉS TU ── */}
         {step === 1 && (
-          <div>
-            <h2 className="text-2xl font-black mb-1" style={{ color: 'var(--text)', letterSpacing: '-0.03em' }}>
-              Quem és tu?
-            </h2>
-            <p className="text-sm mb-6" style={{ color: 'var(--text-muted)' }}>
-              Vamos criar o teu perfil de atleta.
-            </p>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <h2 style={{ fontWeight: 900, fontSize: 26, color: 'var(--text)', letterSpacing: '-0.03em', marginBottom: 4 }}>Quem és tu?</h2>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 24 }}>Vamos criar o teu perfil de atleta.</p>
 
             {/* Strava */}
             {!stravaPrefill ? (
               <a href={STRAVA_REGISTER_URL}
-                className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl font-bold text-sm mb-6"
-                style={{ background: '#FC4C02', color: 'white' }}>
-                <StravaIcon size={16} />
-                Continuar com Strava
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px', borderRadius: 16, fontWeight: 700, fontSize: 14, background: '#FC4C02', color: 'white', textDecoration: 'none', marginBottom: 20 }}>
+                <StravaIcon size={16} />Continuar com Strava
               </a>
             ) : (
-              <div className="flex items-center gap-3 p-3 rounded-2xl mb-6"
-                style={{ background: 'rgba(252,76,2,0.10)', border: '1px solid rgba(252,76,2,0.25)' }}>
-                {stravaPrefill.avatar_url && (
-                  <img src={stravaPrefill.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
-                )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 16, background: 'rgba(252,76,2,0.10)', border: '1px solid rgba(252,76,2,0.25)', marginBottom: 20 }}>
+                {stravaPrefill.avatar_url && <img src={stravaPrefill.avatar_url} alt="" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }} />}
                 <div>
-                  <p className="text-xs font-bold" style={{ color: '#FC4C02' }}>Ligado ao Strava</p>
-                  <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{stravaPrefill.name}</p>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: '#FC4C02' }}>Ligado ao Strava</p>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{stravaPrefill.name}</p>
                 </div>
               </div>
             )}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
-                <label style={s.label}>Nome completo</label>
-                <input style={s.input} value={form.name} onChange={e => set('name', e.target.value)}
-                  placeholder="O teu nome"
-                  onFocus={e => e.target.style.borderColor='var(--heh-green)'}
-                  onBlur={e => e.target.style.borderColor='var(--border)'} />
+                <label style={labelStyle}>Nome completo</label>
+                <input style={inputStyle} value={form.name} onChange={e => set('name', e.target.value)} placeholder="O teu nome" />
               </div>
 
               <div>
-                <label style={s.label}>Sexo</label>
+                <label style={labelStyle}>Sexo</label>
                 <div style={{ display: 'flex', gap: 10 }}>
                   {[{v:'M',l:'Masculino'},{v:'F',l:'Feminino'}].map(({v,l}) => (
                     <button key={v} type="button" onClick={() => set('sex', v)}
-                      style={{
-                        flex: 1, padding: '13px 0', borderRadius: 14, fontSize: 14, fontWeight: 700,
-                        cursor: 'pointer', transition: 'all 0.15s',
-                        background: form.sex===v ? 'rgba(184,255,0,0.12)' : 'var(--surface2)',
-                        color: form.sex===v ? 'var(--heh-green)' : 'var(--text-muted)',
-                        border: form.sex===v ? '1.5px solid rgba(184,255,0,0.5)' : '1px solid var(--border)',
-                      }}>
+                      style={{ flex: 1, padding: '13px', borderRadius: 14, fontSize: 14, fontWeight: 700, cursor: 'pointer', border: form.sex===v ? '1.5px solid rgba(184,255,0,0.5)' : '1px solid var(--border)', background: form.sex===v ? 'rgba(184,255,0,0.12)' : 'var(--surface2)', color: form.sex===v ? 'var(--heh-green)' : 'var(--text-muted)', transition: 'all 0.15s' }}>
                       {l}
                     </button>
                   ))}
@@ -287,205 +339,182 @@ export default function Register() {
               </div>
 
               <div>
-                <label style={s.label}>Data de nascimento</label>
-                <input type="date" style={s.input} value={form.date_of_birth}
-                  onChange={e => set('date_of_birth', e.target.value)}
-                  onFocus={e => e.target.style.borderColor='var(--heh-green)'}
-                  onBlur={e => e.target.style.borderColor='var(--border)'} />
+                <label style={labelStyle}>Data de nascimento</label>
+                <input type="date" style={inputStyle} value={form.date_of_birth} onChange={e => set('date_of_birth', e.target.value)} />
               </div>
 
               <div>
-                <label style={s.label}>País</label>
-                <select style={{ ...s.input, appearance: 'none' }}
-                  value={form.country} onChange={e => set('country', e.target.value)}>
+                <label style={labelStyle}>País</label>
+                <select style={{ ...inputStyle, appearance: 'none' }} value={form.country} onChange={e => set('country', e.target.value)}>
                   {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
 
               <div>
-                <label style={s.label}>Email</label>
-                <input type="email" style={s.input} value={form.email}
-                  onChange={e => set('email', e.target.value)} placeholder="o.teu@email.pt"
-                  onFocus={e => e.target.style.borderColor='var(--heh-green)'}
-                  onBlur={e => e.target.style.borderColor='var(--border)'} />
+                <label style={labelStyle}>Email</label>
+                <input type="email" style={inputStyle} value={form.email} onChange={e => set('email', e.target.value)} placeholder="o.teu@email.pt" />
               </div>
 
               <div>
-                <label style={s.label}>Palavra-passe</label>
-                <input type="password" style={s.input} value={form.password}
-                  onChange={e => set('password', e.target.value)} placeholder="mínimo 6 caracteres"
-                  onFocus={e => e.target.style.borderColor='var(--heh-green)'}
-                  onBlur={e => e.target.style.borderColor='var(--border)'} />
+                <label style={labelStyle}>Palavra-passe</label>
+                <input type="password" style={inputStyle} value={form.password} onChange={e => set('password', e.target.value)} placeholder="mínimo 6 caracteres" />
               </div>
             </div>
-          </div>
-        )}
 
-        {/* ── STEP 2: DESPORTO ── */}
-        {step === 2 && (
-          <div>
-            <h2 className="text-2xl font-black mb-1" style={{ color: 'var(--text)', letterSpacing: '-0.03em' }}>
-              O teu atletismo
-            </h2>
-            <p className="text-sm mb-8" style={{ color: 'var(--text-muted)' }}>
-              Conta-nos mais sobre o que gostas de fazer.
-            </p>
-
-            {/* Experiência */}
-            <div className="mb-8">
-              <p className="text-base font-bold mb-3" style={{ color: 'var(--text)' }}>
-                Tens experiência em corrida ou atletismo?
+            <div style={{ marginTop: 28, paddingBottom: 32 }}>
+              <button onClick={() => { setError(''); setStep(2) }} disabled={!step1Valid}
+                style={{ width: '100%', padding: '16px', borderRadius: 16, fontWeight: 900, fontSize: 15, border: 'none', cursor: step1Valid ? 'pointer' : 'not-allowed', background: step1Valid ? 'var(--heh-green)' : 'var(--surface2)', color: step1Valid ? '#080808' : 'var(--text-muted)', transition: 'all 0.15s' }}>
+                Próximo →
+              </button>
+              <p style={{ textAlign: 'center', marginTop: 14, fontSize: 13, color: 'var(--text-muted)' }}>
+                Já tens conta? <Link to="/login" style={{ color: 'var(--heh-green)', fontWeight: 700 }}>Entrar</Link>
               </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {[
-                  { v: 'runner', l: 'Sim, já pratico', d: 'Tenho experiência ou pratico desporto regularmente' },
-                  { v: 'beginner', l: 'Estou a começar', d: 'Nunca pratiquei ou quero recomeçar do zero' },
-                ].map(({ v, l, d }) => (
-                  <button key={v} type="button" onClick={() => set('experience', v)}
-                    style={{
-                      padding: '16px 18px', borderRadius: 16, textAlign: 'left', cursor: 'pointer',
-                      background: form.experience===v ? 'rgba(184,255,0,0.10)' : 'var(--surface)',
-                      border: form.experience===v ? '2px solid rgba(184,255,0,0.5)' : '1.5px solid var(--border)',
-                      transition: 'all 0.15s',
-                    }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontWeight: 700, fontSize: 15, color: form.experience===v ? 'var(--heh-green)' : 'var(--text)' }}>{l}</span>
-                      {form.experience===v && <Check size={16} style={{ color: 'var(--heh-green)' }} />}
-                    </div>
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, display: 'block' }}>{d}</span>
-                  </button>
-                ))}
-              </div>
             </div>
+          </div>
+        )}
 
-            {/* Provas — só se tiver experiência */}
-            {form.experience === 'runner' && (
-              <div className="mb-8">
-                <p className="text-base font-bold mb-3" style={{ color: 'var(--text)' }}>
-                  Em que provas te especializas?
-                </p>
-                {EVENT_GROUPS.map(({ label, events }) => (
-                  <div key={label} className="mb-4">
-                    <p className="text-xs font-bold uppercase tracking-wider mb-2"
-                      style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>{label}</p>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {events.map(ev => {
-                        const sel = form.events.includes(ev)
-                        return (
-                          <button key={ev} type="button" onClick={() => toggleEvent(ev)}
-                            style={{
-                              padding: '8px 14px', borderRadius: 20, fontSize: 13, fontWeight: 600,
-                              cursor: 'pointer', transition: 'all 0.15s',
-                              background: sel ? 'rgba(184,255,0,0.12)' : 'var(--surface2)',
-                              color: sel ? 'var(--heh-green)' : 'var(--text-muted)',
-                              border: sel ? '1.5px solid rgba(184,255,0,0.45)' : '1px solid var(--border)',
-                            }}>
-                            {ev}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+        {/* ── PASSO 2: DESPORTO (sub-perguntas) ── */}
+        {step === 2 && (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
 
-            {/* Objetivo */}
-            {form.experience && (
-              <div className="mb-8">
-                <p className="text-base font-bold mb-3" style={{ color: 'var(--text)' }}>
-                  Qual é o teu objetivo?
-                </p>
+            {/* ── 2a: Experiência ── */}
+            {currentSub === 'experience' && (
+              <AnimatedQ qKey="experience">
+                <h2 style={{ fontWeight: 900, fontSize: 24, color: 'var(--text)', letterSpacing: '-0.03em', marginBottom: 8 }}>
+                  Tens experiência em corrida ou atletismo?
+                </h2>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 24 }}>Conta-nos um pouco sobre ti.</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {GOALS.map(({ id, label, icon }) => {
-                    const sel = form.goal === id
-                    return (
-                      <button key={id} type="button" onClick={() => set('goal', id)}
-                        style={{
-                          padding: '14px 18px', borderRadius: 14, textAlign: 'left',
-                          cursor: 'pointer', transition: 'all 0.15s',
-                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                          background: sel ? 'rgba(184,255,0,0.10)' : 'var(--surface)',
-                          border: sel ? '2px solid rgba(184,255,0,0.5)' : '1.5px solid var(--border)',
-                        }}>
-                        <span style={{ fontWeight: 700, fontSize: 14, color: sel ? 'var(--heh-green)' : 'var(--text)' }}>
-                          {icon} {label}
-                        </span>
-                        {sel && <Check size={16} style={{ color: 'var(--heh-green)' }} />}
-                      </button>
-                    )
-                  })}
+                  <BigOption label="Sim, sou corredor" sub="Pratico corrida ou atletismo regularmente" selected={form.experience==='runner'} onSelect={() => { set('experience','runner'); setTimeout(advanceSub, 280) }} />
+                  <BigOption label="Estou a começar" sub="Nunca treinei ou quero recomeçar do zero" selected={form.experience==='beginner'} onSelect={() => { set('experience','beginner'); setTimeout(advanceSub, 280) }} />
+                  <BigOption label="Faço caminhada" sub="Caminho regularmente, não corro" selected={form.experience==='walker'} onSelect={() => { set('experience','walker'); setTimeout(advanceSub, 280) }} />
                 </div>
-              </div>
+              </AnimatedQ>
             )}
 
-            {/* Melhor tempo 10k */}
-            {needsPR && (
-              <div className="mb-4">
-                <p className="text-base font-bold mb-1" style={{ color: 'var(--text)' }}>
+            {/* ── 2b: Objetivo ── */}
+            {currentSub === 'goal' && (
+              <AnimatedQ qKey="goal">
+                <h2 style={{ fontWeight: 900, fontSize: 24, color: 'var(--text)', letterSpacing: '-0.03em', marginBottom: 8 }}>
+                  Qual é o teu objetivo?
+                </h2>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 24 }}>Escolhe o que mais te representa.</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {[
+                    { v:'improve', l:'Melhorar os meus tempos',   s:'Quero ser mais rápido e bater PRs' },
+                    { v:'compete', l:'Competir a alto nível',      s:'Quero representar o clube em provas' },
+                    { v:'health',  l:'Manter-me saudável',         s:'O desporto faz-me bem, quero continuar' },
+                  ].map(({ v, l, s }) => (
+                    <BigOption key={v} label={l} sub={s} selected={form.goal===v} onSelect={() => { set('goal', v); setTimeout(advanceSub, 280) }} />
+                  ))}
+                </div>
+              </AnimatedQ>
+            )}
+
+            {/* ── 2c: Provas ── */}
+            {currentSub === 'events' && (
+              <AnimatedQ qKey="events">
+                <h2 style={{ fontWeight: 900, fontSize: 24, color: 'var(--text)', letterSpacing: '-0.03em', marginBottom: 8 }}>
+                  Em que provas te especializas?
+                </h2>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>Podes escolher várias.</p>
+                <div style={{ flex: 1 }}>
+                  {EVENT_GROUPS.map(({ label, events }) => (
+                    <div key={label} style={{ marginBottom: 18 }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: 8 }}>{label}</p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        {events.map(ev => {
+                          const sel = form.events.includes(ev)
+                          return (
+                            <button key={ev} type="button" onClick={() => toggleEvent(ev)}
+                              style={{ padding: '8px 14px', borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: sel ? 'rgba(184,255,0,0.12)' : 'var(--surface2)', color: sel ? 'var(--heh-green)' : 'var(--text-muted)', border: sel ? '1.5px solid rgba(184,255,0,0.45)' : '1px solid var(--border)', transition: 'all 0.15s' }}>
+                              {ev}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ paddingTop: 16, paddingBottom: 32 }}>
+                  <button onClick={advanceSub} disabled={form.events.length === 0}
+                    style={{ width: '100%', padding: '16px', borderRadius: 16, fontWeight: 900, fontSize: 15, border: 'none', cursor: form.events.length > 0 ? 'pointer' : 'not-allowed', background: form.events.length > 0 ? 'var(--heh-green)' : 'var(--surface2)', color: form.events.length > 0 ? '#080808' : 'var(--text-muted)', transition: 'all 0.15s' }}>
+                    Próximo →
+                  </button>
+                </div>
+              </AnimatedQ>
+            )}
+
+            {/* ── 2d: Tempo 10k ── */}
+            {currentSub === 'time' && (
+              <AnimatedQ qKey="time">
+                <h2 style={{ fontWeight: 900, fontSize: 24, color: 'var(--text)', letterSpacing: '-0.03em', marginBottom: 8 }}>
                   Qual é o teu melhor tempo nos 10k?
+                </h2>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 28 }}>
+                  Serve para te colocar no grupo certo. Não é um problema não saberes.
                 </p>
-                <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
-                  Serve para colocar-te no grupo certo. Não há problema em não saberes.
-                </p>
+
                 {!form.no_pr && (
-                  <input style={{ ...s.input, marginBottom: 10 }}
-                    value={form.pr_10km} onChange={e => set('pr_10km', e.target.value)}
-                    placeholder="Ex: 45:30"
-                    onFocus={e => e.target.style.borderColor='var(--heh-green)'}
-                    onBlur={e => e.target.style.borderColor='var(--border)'} />
+                  <>
+                    <div style={{ background: 'var(--surface)', borderRadius: 20, padding: '28px 20px', marginBottom: 20, border: '1px solid var(--border)' }}>
+                      <TimePicker
+                        minutes={form.pr_min}
+                        seconds={form.pr_sec}
+                        onChange={(m, s) => setForm(f => ({ ...f, pr_min: m, pr_sec: s }))}
+                      />
+                    </div>
+
+                    {/* Grupo estimado em tempo real */}
+                    {liveGroup && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '12px', borderRadius: 14, background: 'rgba(184,255,0,0.06)', border: '1px solid rgba(184,255,0,0.15)', marginBottom: 20 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: 8, background: GROUP_INFO[liveGroup]?.color + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 13, color: GROUP_INFO[liveGroup]?.color }}>
+                          {liveGroup}
+                        </div>
+                        <div>
+                          <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+                            Grupo {liveGroup} · {GROUP_INFO[liveGroup]?.label}
+                          </p>
+                          <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>grupo atribuído com base no teu tempo</p>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
+
                 <button type="button" onClick={() => set('no_pr', !form.no_pr)}
-                  style={{
-                    padding: '10px 16px', borderRadius: 12, fontSize: 13, fontWeight: 600,
-                    cursor: 'pointer', transition: 'all 0.15s',
-                    background: form.no_pr ? 'rgba(184,255,0,0.10)' : 'var(--surface2)',
-                    color: form.no_pr ? 'var(--heh-green)' : 'var(--text-muted)',
-                    border: form.no_pr ? '1.5px solid rgba(184,255,0,0.45)' : '1px solid var(--border)',
-                    display: 'flex', alignItems: 'center', gap: 8,
-                  }}>
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 16px', borderRadius: 12, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: form.no_pr ? 'rgba(184,255,0,0.10)' : 'var(--surface2)', color: form.no_pr ? 'var(--heh-green)' : 'var(--text-muted)', border: form.no_pr ? '1.5px solid rgba(184,255,0,0.45)' : '1px solid var(--border)', width: '100%', marginBottom: 24 }}>
                   {form.no_pr && <Check size={14} />}
-                  Nunca fiz / Não sei o tempo
+                  Nunca fiz 10k / Não sei o tempo {form.no_pr && '— vais para o G6'}
                 </button>
-              </div>
+
+                <div style={{ paddingBottom: 32 }}>
+                  <button onClick={() => { setStep(3); setSubStep(0) }}
+                    style={{ width: '100%', padding: '16px', borderRadius: 16, fontWeight: 900, fontSize: 15, border: 'none', cursor: 'pointer', background: 'var(--heh-green)', color: '#080808' }}>
+                    Próximo →
+                  </button>
+                </div>
+              </AnimatedQ>
             )}
           </div>
         )}
 
-        {/* ── STEP 3: TREINADOR + CONTA ── */}
+        {/* ── PASSO 3: TREINADOR + GDPR ── */}
         {step === 3 && (
-          <div>
-            <h2 className="text-2xl font-black mb-1" style={{ color: 'var(--text)', letterSpacing: '-0.03em' }}>
-              Quase lá!
-            </h2>
-            <p className="text-sm mb-8" style={{ color: 'var(--text-muted)' }}>
-              Escolhe o teu treinador e cria a conta.
-            </p>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <h2 style={{ fontWeight: 900, fontSize: 26, color: 'var(--text)', letterSpacing: '-0.03em', marginBottom: 4 }}>Quase lá!</h2>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 24 }}>Escolhe o teu treinador e cria a conta.</p>
 
-            {/* Coach */}
             {coaches.length > 0 && (
-              <div className="mb-8">
-                <p className="text-base font-bold mb-3" style={{ color: 'var(--text)' }}>
-                  Escolhe o teu treinador
-                </p>
+              <div style={{ marginBottom: 24 }}>
+                <label style={labelStyle}>Treinador</label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {coaches.map(coach => {
                     const sel = form.coach_id === coach.id
                     return (
                       <button key={coach.id} type="button" onClick={() => set('coach_id', coach.id)}
-                        style={{
-                          padding: '14px 16px', borderRadius: 16, textAlign: 'left', cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', gap: 14, transition: 'all 0.15s',
-                          background: sel ? 'rgba(184,255,0,0.10)' : 'var(--surface)',
-                          border: sel ? '2px solid rgba(184,255,0,0.5)' : '1.5px solid var(--border)',
-                        }}>
-                        <div style={{
-                          width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-                          background: sel ? 'rgba(184,255,0,0.15)' : 'var(--surface2)',
-                          color: sel ? 'var(--heh-green)' : 'var(--text-muted)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontWeight: 900, fontSize: 18,
-                        }}>
+                        style={{ padding: '14px 16px', borderRadius: 16, textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, background: sel ? 'rgba(184,255,0,0.10)' : 'var(--surface)', border: sel ? '2px solid rgba(184,255,0,0.5)' : '1.5px solid var(--border)', transition: 'all 0.15s' }}>
+                        <div style={{ width: 42, height: 42, borderRadius: 12, background: sel ? 'rgba(184,255,0,0.15)' : 'var(--surface2)', color: sel ? 'var(--heh-green)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 18, flexShrink: 0 }}>
                           {coach.name.charAt(0)}
                         </div>
                         <div style={{ flex: 1 }}>
@@ -500,20 +529,11 @@ export default function Register() {
               </div>
             )}
 
-            {/* GDPR */}
-            <label style={{
-              display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer',
-              padding: '14px', borderRadius: 14, marginBottom: 24,
-              background: form.gdpr_consent ? 'rgba(184,255,0,0.08)' : 'var(--surface)',
-              border: form.gdpr_consent ? '1.5px solid rgba(184,255,0,0.4)' : '1.5px solid var(--border)',
-            }}>
-              <input type="checkbox" checked={form.gdpr_consent}
-                onChange={e => set('gdpr_consent', e.target.checked)}
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer', padding: '14px', borderRadius: 14, marginBottom: 20, background: form.gdpr_consent ? 'rgba(184,255,0,0.08)' : 'var(--surface)', border: form.gdpr_consent ? '1.5px solid rgba(184,255,0,0.4)' : '1.5px solid var(--border)' }}>
+              <input type="checkbox" checked={form.gdpr_consent} onChange={e => set('gdpr_consent', e.target.checked)}
                 style={{ width: 18, height: 18, marginTop: 1, accentColor: 'var(--heh-green)', flexShrink: 0 }} />
-              <span style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                Autorizo a <strong style={{ color: 'var(--text)' }}>Hoje é Hoje</strong> a recolher e tratar os meus dados pessoais
-                exclusivamente para fins de gestão de treinos e análise de desempenho desportivo,
-                em conformidade com o RGPD.
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                Autorizo a <strong style={{ color: 'var(--text)' }}>Hoje é Hoje</strong> a recolher e tratar os meus dados pessoais para gestão de treinos e análise de desempenho, em conformidade com o RGPD.
               </span>
             </label>
 
@@ -522,44 +542,15 @@ export default function Register() {
                 <AlertCircle size={15} /> {error}
               </div>
             )}
+
+            <div style={{ paddingBottom: 32 }}>
+              <button onClick={handleSubmit} disabled={loading || !form.gdpr_consent}
+                style={{ width: '100%', padding: '16px', borderRadius: 16, fontWeight: 900, fontSize: 15, border: 'none', cursor: 'pointer', background: form.gdpr_consent ? 'var(--heh-green)' : 'var(--surface2)', color: form.gdpr_consent ? '#080808' : 'var(--text-muted)', opacity: loading ? 0.7 : 1, transition: 'all 0.15s' }}>
+                {loading ? 'A criar conta...' : 'Criar conta'}
+              </button>
+            </div>
           </div>
         )}
-
-        {/* ── BOTÃO AVANÇAR / CRIAR CONTA ── */}
-        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '16px 20px 32px', background: 'linear-gradient(to top, var(--dark) 70%, transparent)', maxWidth: 390, margin: '0 auto' }}>
-          {step < TOTAL ? (
-            <button
-              onClick={() => { setError(''); setStep(s => s + 1) }}
-              disabled={!canAdvance[step]}
-              style={{
-                width: '100%', padding: '16px', borderRadius: 16, fontWeight: 900, fontSize: 15,
-                border: 'none', cursor: canAdvance[step] ? 'pointer' : 'not-allowed',
-                background: canAdvance[step] ? 'var(--heh-green)' : 'var(--surface2)',
-                color: canAdvance[step] ? '#080808' : 'var(--text-muted)',
-                transition: 'all 0.15s', letterSpacing: '-0.01em',
-              }}>
-              Próximo →
-            </button>
-          ) : (
-            <button
-              onClick={handleSubmit}
-              disabled={loading || !canAdvance[3]}
-              style={{
-                width: '100%', padding: '16px', borderRadius: 16, fontWeight: 900, fontSize: 15,
-                border: 'none', cursor: 'pointer',
-                background: canAdvance[3] ? 'var(--heh-green)' : 'var(--surface2)',
-                color: canAdvance[3] ? '#080808' : 'var(--text-muted)',
-                opacity: loading ? 0.7 : 1, transition: 'all 0.15s',
-              }}>
-              {loading ? 'A criar conta...' : 'Criar conta'}
-            </button>
-          )}
-          {step === 1 && (
-            <p style={{ textAlign: 'center', marginTop: 12, fontSize: 13, color: 'var(--text-muted)' }}>
-              Já tens conta? <Link to="/login" style={{ color: 'var(--heh-green)', fontWeight: 700 }}>Entrar</Link>
-            </p>
-          )}
-        </div>
       </div>
     </div>
   )
