@@ -2,10 +2,44 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { parseTime } from '../utils/pace'
-import { assignGroup, MODALITIES, SPECIALIZATIONS } from '../utils/groupAssignment'
-import { AlertCircle, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react'
+import { assignGroup } from '../utils/groupAssignment'
+import { AlertCircle, ChevronLeft, Check } from 'lucide-react'
 
 const STRAVA_REGISTER_URL = `https://www.strava.com/oauth/authorize?client_id=261127&redirect_uri=${encodeURIComponent('https://run-blush.vercel.app/strava/register-callback')}&response_type=code&scope=read,activity:read_all&approval_prompt=auto`
+
+const COUNTRIES = [
+  'Portugal','Brasil','Angola','Moçambique','Cabo Verde','Guiné-Bissau',
+  'São Tomé e Príncipe','Timor-Leste','Espanha','França','Alemanha',
+  'Reino Unido','Itália','Holanda','Bélgica','Suíça','Suécia','Noruega',
+  'Estados Unidos','Canadá','Outro',
+]
+
+const EVENT_GROUPS = [
+  {
+    label: 'Estrada',
+    events: ['5k','10k','Meia Maratona','Maratona'],
+  },
+  {
+    label: 'Trail',
+    events: ['Trail Curto','Trail Médio','Ultra Trail'],
+  },
+  {
+    label: 'Pista',
+    events: ['100m','200m','400m','800m','1500m','3000m','5000m','10000m'],
+  },
+  {
+    label: 'Campo',
+    events: ['Salto em Comprimento','Salto em Altura','Salto com Vara','Triplo Salto','Lançamento do Dardo','Lançamento do Martelo','Lançamento do Disco','Lançamento do Peso'],
+  },
+]
+
+const RUNNING_EVENTS = ['5k','10k','Meia Maratona','Maratona','Trail Curto','Trail Médio','Ultra Trail','800m','1500m','3000m','5000m','10000m']
+
+const GOALS = [
+  { id: 'improve',  label: 'Melhorar os meus tempos',    icon: '⏱' },
+  { id: 'compete',  label: 'Competir a alto nível',       icon: '🏆' },
+  { id: 'health',   label: 'Manter-me saudável',          icon: '💚' },
+]
 
 function StravaIcon({ size = 16 }) {
   return (
@@ -15,534 +49,518 @@ function StravaIcon({ size = 16 }) {
   )
 }
 
-const inputStyle = {
-background: 'var(--surface2)',
-border: '1px solid var(--border)',
-color: 'var(--text)',
-borderRadius: 12,
-padding: '12px 16px',
-fontSize: 14,
-width: '100%',
-outline: 'none',
+const s = {
+  input: {
+    width: '100%', background: 'var(--surface2)',
+    border: '1px solid var(--border)', borderRadius: 14,
+    padding: '14px 16px', fontSize: 15, color: 'var(--text)', outline: 'none',
+  },
+  label: {
+    display: 'block', fontSize: 11, fontWeight: 700,
+    textTransform: 'uppercase', letterSpacing: '0.08em',
+    color: 'var(--text-muted)', marginBottom: 8,
+  },
 }
-const labelStyle = {
-display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-letterSpacing: '0.07em', color: 'var(--text-muted)', marginBottom: 6,
-}
-
-function MultiSelect({ options, value, onChange, columns = 2 }) {
-return (
-<div style={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: 8 }}>
-{options.map(opt => {
-const selected = value.includes(opt)
-return (
-<button key={opt} type="button"
-onClick={() => onChange(selected ? value.filter(v => v !== opt) : [...value, opt])}
-style={{
-padding: '8px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600,
-textAlign: 'left', cursor: 'pointer', transition: 'all 0.15s',
-background: selected ? 'rgba(184,255,0,0.12)' : 'var(--surface2)',
-color: selected ? 'var(--heh-green)' : 'var(--text-muted)',
-border: selected ? '1px solid rgba(184,255,0,0.35)' : '1px solid var(--border)',
-}}>
-{selected ? '✓ ' : ''}{opt}
-</button>
-)
-})}
-</div>
-)
-}
-
-function SpecializationsSection({ modalities, value, onChange }) {
-const [open, setOpen] = useState({})
-if (!modalities.length) return null
-
-const relevantMods = modalities.filter(m => SPECIALIZATIONS[m])
-if (!relevantMods.length) return null
-
-return (
-<div className="space-y-3">
-{relevantMods.map(mod => (
-<div key={mod}>
-<p className="text-xs font-bold mb-2" style={{ color: 'var(--text)' }}>{mod} — Especialização</p>
-{SPECIALIZATIONS[mod].map(({ group, items }) => (
-<div key={group} className="mb-2">
-<button type="button" onClick={() => setOpen(p => ({ ...p, [mod+group]: !p[mod+group] }))}
-className="flex items-center justify-between w-full mb-1.5"
-style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 600 }}>
-<span>{group}</span>
-{open[mod+group] ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-</button>
-{(open[mod+group] || modalities.length === 1) && (
-<MultiSelect options={items} value={value} onChange={onChange} columns={2} />
-)}
-</div>
-))}
-</div>
-))}
-</div>
-)
-}
-
-function GroupBadge({ group }) {
-const colors = {
-G1: { bg: 'rgba(48,209,88,0.15)', text: '#30D158' },
-G2: { bg: 'rgba(10,132,255,0.15)', text: '#0A84FF' },
-G3: { bg: 'rgba(255,214,10,0.15)', text: '#FFD60A' },
-G4: { bg: 'rgba(255,159,10,0.15)', text: '#FF9F0A' },
-G5: { bg: 'rgba(255,69,58,0.15)', text: '#FF453A' },
-G6: { bg: 'rgba(191,90,242,0.15)', text: '#BF5AF2' },
-}
-if (!group) return null
-const clr = colors[group] || colors.G6
-return (
-<div className="rounded-2xl p-4 text-center"
-style={{ background: clr.bg, border: `1px solid ${clr.text}33` }}>
-<p className="text-xs font-bold mb-1" style={{ color: clr.text }}>Grupo atribuído</p>
-<p className="text-4xl font-black" style={{ color: clr.text }}>{group}</p>
-</div>
-)
-}
-
-const STEPS = ['Pessoal', 'Desporto', 'Treinador', 'Conta']
 
 export default function Register() {
-const navigate = useNavigate()
-const [step, setStep] = useState(0)
-const [coaches, setCoaches] = useState([])
-const [loading, setLoading] = useState(false)
-const [error, setError] = useState('')
-const [stravaPrefill, setStravaPrefill] = useState(null)
+  const navigate = useNavigate()
+  const [step, setStep]   = useState(1)
+  const [error, setError] = useState('')
+  const [loading, setLoading]     = useState(false)
+  const [coaches, setCoaches]     = useState([])
+  const [stravaPrefill, setStravaPrefill] = useState(null)
 
-// Form state
-const [form, setForm] = useState({
-name: '', email: '', password: '',
-date_of_birth: '', sex: '', nationality: 'Portuguesa', location: '',
-postal_code: '', nif: '',
-modalities: [], specializations: [],
-pr_10km: '', pr_5km: '', coach_id: '',
-gdpr_consent: false,
-})
+  const [form, setForm] = useState({
+    name: '', sex: '', date_of_birth: '', country: 'Portugal',
+    email: '', password: '',
+    experience: '',
+    events: [],
+    goal: '',
+    pr_10km: '',
+    no_pr: false,
+    coach_id: '',
+    gdpr_consent: false,
+  })
 
-function set(k, v) { setForm(p => ({ ...p, [k]: v })) }
+  useEffect(() => {
+    const prefill = sessionStorage.getItem('strava_prefill')
+    if (prefill) {
+      const p = JSON.parse(prefill)
+      setStravaPrefill(p)
+      setForm(f => ({
+        ...f,
+        name: p.name || '',
+        sex: p.sex === 'M' ? 'M' : p.sex === 'F' ? 'F' : '',
+      }))
+    }
+    supabase.from('athletes').select('id,name,email').eq('is_coach', true)
+      .then(({ data }) => { if (data) setCoaches(data) })
+  }, [])
 
-useEffect(() => {
-supabase.from('coaches').select('id, name, email').order('name').then(({ data }) => {
-if (data) setCoaches(data)
-})
-// Pré-preencher com dados do Strava se vieram do OAuth
-const raw = sessionStorage.getItem('strava_prefill')
-if (raw) {
-  try {
-    const prefill = JSON.parse(raw)
-    setStravaPrefill(prefill)
-    setForm(p => ({
-      ...p,
-      name:     prefill.name     || p.name,
-      sex:      prefill.sex      || p.sex,
-      location: prefill.location || p.location,
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
+
+  function toggleEvent(ev) {
+    setForm(f => ({
+      ...f,
+      events: f.events.includes(ev) ? f.events.filter(e => e !== ev) : [...f.events, ev],
     }))
-  } catch { /* ignorar JSON inválido */ }
-}
-}, [])
+  }
 
-const pr10Seconds = parseTime(form.pr_10km)
-const autoGroup = form.sex && pr10Seconds ? assignGroup(form.sex, pr10Seconds) : null
+  const hasRunningEvent = form.events.some(e => RUNNING_EVENTS.includes(e))
+  const needsPR = form.experience === 'runner' && hasRunningEvent
 
-async function handleSubmit(e) {
-e.preventDefault()
-setLoading(true)
-setError('')
+  // Validate each step
+  const canAdvance = [
+    null,
+    form.name && form.sex && form.date_of_birth && form.country && form.email && form.password.length >= 6,
+    form.experience && form.goal && (form.experience === 'beginner' || form.events.length > 0),
+    form.gdpr_consent,
+  ]
 
-const pr10 = parseTime(form.pr_10km)
-const pr5 = parseTime(form.pr_5km)
+  async function handleSubmit() {
+    setError('')
+    setLoading(true)
+    try {
+      // Sign up
+      const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+        email: form.email, password: form.password,
+      })
+      let session = signUpData?.session
 
-if (!pr10) { setError('Formato de PR 10km inválido (use MM:SS ou HH:MM:SS)'); setLoading(false); return }
+      if (signUpErr?.message?.includes('already registered')) {
+        const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
+          email: form.email, password: form.password,
+        })
+        if (signInErr || !signInData.session) {
+          setError('Email já registado. Confirma o email ou usa outra password.')
+          setLoading(false)
+          return
+        }
+        session = signInData.session
+      }
 
-// 1. Create auth user (or sign in if already exists)
-const { data: authData, error: authErr } = await supabase.auth.signUp({
-email: form.email,
-password: form.password,
-options: { data: { name: form.name } },
-})
+      await supabase.auth.setSession(session)
 
-// If any error other than "already exists", abort
-if (authErr && authErr.code !== 'user_already_exists') {
-setError(authErr.message || 'Erro ao criar conta. Tenta novamente.')
-setLoading(false)
-return
-}
+      // Compute group
+      const pr10 = form.no_pr ? null : parseTime(form.pr_10km)
+      const group = form.experience === 'beginner' || (!pr10 && !hasRunningEvent)
+        ? 'G6'
+        : assignGroup(form.sex, pr10) || 'G6'
 
-// Ensure we have an active session (sign in if user already existed)
-let session = authData?.session
-if (!session) {
-const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
-email: form.email,
-password: form.password,
-})
-if (signInErr || !signInData.session) {
-setError('Confirma o teu email ou verifica a palavra-passe.')
-setLoading(false)
-return
-}
-session = signInData.session
-}
-await supabase.auth.setSession(session)
+      const { error: insErr } = await supabase.rpc('register_athlete', {
+        p_name:           form.name,
+        p_email:          form.email,
+        p_group:          group,
+        p_sex:            form.sex || null,
+        p_date_of_birth:  form.date_of_birth || null,
+        p_nationality:    form.country || null,
+        p_location:       null,
+        p_postal_code:    null,
+        p_nif:            null,
+        p_modalities:     ['Atletismo'],
+        p_specializations: form.events,
+        p_pr_10km:        pr10 || null,
+        p_pr_5km:         null,
+        p_coach_id:       form.coach_id || null,
+        p_gdpr_consent:   form.gdpr_consent,
+      })
 
-// 2. Create athlete record via RPC (bypasses RLS safely)
-const group = assignGroup(form.sex, pr10)
-const { error: insErr } = await supabase.rpc('register_athlete', {
-p_name: form.name,
-p_email: form.email,
-p_group: group,
-p_sex: form.sex || null,
-p_date_of_birth: form.date_of_birth || null,
-p_nationality: form.nationality || null,
-p_location: form.location || null,
-p_postal_code: form.postal_code || null,
-p_nif: form.nif || null,
-p_modalities: form.modalities,
-p_specializations: form.specializations,
-p_pr_10km: pr10 || null,
-p_pr_5km: pr5 || null,
-p_coach_id: form.coach_id || null,
-p_gdpr_consent: form.gdpr_consent,
-})
-if (insErr) {
-setError(`Erro ao criar perfil: ${insErr.message || insErr.details || insErr.code || 'Erro desconhecido'}`)
-setLoading(false)
-return
-}
+      if (insErr) {
+        setError('Erro ao criar perfil: ' + (insErr.message || insErr.code))
+        setLoading(false)
+        return
+      }
 
-// Guardar tokens Strava se o registo veio do OAuth
-if (stravaPrefill?.access_token) {
-  await supabase.from('athletes').update({
-    avatar_url:              stravaPrefill.avatar_url,
-    strava_athlete_id:       stravaPrefill.strava_athlete_id,
-    strava_access_token:     stravaPrefill.access_token,
-    strava_refresh_token:    stravaPrefill.refresh_token,
-    strava_token_expires_at: stravaPrefill.expires_at,
-  }).eq('email', form.email)
-  sessionStorage.removeItem('strava_prefill')
-}
+      if (stravaPrefill?.access_token) {
+        await supabase.from('athletes').update({
+          avatar_url:              stravaPrefill.avatar_url,
+          strava_athlete_id:       stravaPrefill.strava_athlete_id,
+          strava_access_token:     stravaPrefill.access_token,
+          strava_refresh_token:    stravaPrefill.refresh_token,
+          strava_token_expires_at: stravaPrefill.expires_at,
+        }).eq('email', form.email)
+        sessionStorage.removeItem('strava_prefill')
+      }
 
-navigate('/dashboard')
-}
+      navigate('/dashboard')
+    } catch (e) {
+      setError('Erro inesperado: ' + e.message)
+      setLoading(false)
+    }
+  }
 
-const canNext = [
-form.name && form.sex && form.date_of_birth,
-form.modalities.length > 0 && form.pr_10km,
-form.coach_id,
-form.email && form.password && form.password.length >= 6 && form.gdpr_consent,
-]
+  const TOTAL = 3
 
-return (
-<div className="min-h-screen flex flex-col" style={{ background: 'var(--dark)' }}>
-<div className="max-w-sm w-full mx-auto px-5 pt-10 pb-16 flex-1">
+  return (
+    <div className="min-h-screen flex flex-col" style={{ background: 'var(--dark)' }}>
+      <div className="max-w-sm w-full mx-auto px-5 pt-8 pb-24 flex-1">
 
-{/* Logo */}
-<div className="mb-8 text-center">
-<div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3"
-style={{ background: 'var(--orange)' }}>
-<svg width="28" height="28" viewBox="0 0 24 24" fill="white">
-<path d="M13.49 5.48c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm-3.6 13.9l1-4.4 2.1 2v6h2v-7.5l-2.1-2 .6-3c1.3 1.5 3.3 2.5 5.5 2.5v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1l-5.2 2.2v4.7h2v-3.4l1.8-.7-1.6 8.1-4.9-1-.4 2 7 1.4z"/>
-</svg>
-</div>
-<h1 className="text-2xl font-black" style={{ color: 'var(--text)' }}>
-Criar conta <span style={{ color: 'var(--heh-green)' }}>HéH</span>
-</h1>
-<p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>v4</p>
-</div>
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-8">
+          {step > 1 ? (
+            <button onClick={() => setStep(s => s - 1)}
+              className="w-9 h-9 rounded-xl flex items-center justify-center"
+              style={{ background: 'var(--surface2)' }}>
+              <ChevronLeft size={18} style={{ color: 'var(--text-muted)' }} />
+            </button>
+          ) : (
+            <Link to="/" className="w-9 h-9 rounded-xl flex items-center justify-center"
+              style={{ background: 'var(--surface2)' }}>
+              <ChevronLeft size={18} style={{ color: 'var(--text-muted)' }} />
+            </Link>
+          )}
+          <div className="flex-1">
+            <div className="flex gap-1.5">
+              {[1,2,3].map(i => (
+                <div key={i} className="h-1 rounded-full flex-1 transition-all duration-300"
+                  style={{ background: i <= step ? 'var(--heh-green)' : 'var(--surface3)' }} />
+              ))}
+            </div>
+            <p className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>
+              Passo {step} de {TOTAL}
+            </p>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="font-black text-lg" style={{ color: 'var(--text)', letterSpacing: '-0.03em' }}>
+              H<span style={{ color: 'var(--heh-green)' }}>é</span>H
+            </span>
+            <span style={{ color: 'var(--heh-green)', fontSize: 9 }}>✦</span>
+          </div>
+        </div>
 
-{/* Botão Registar com Strava (só se ainda não veio do Strava) */}
-{!stravaPrefill && (
-  <div className="mb-6">
-    <a href={STRAVA_REGISTER_URL}
-      className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl font-bold text-sm"
-      style={{ background: '#FC4C02', color: 'white' }}>
-      <StravaIcon size={18} />
-      Registar com Strava
-    </a>
-    <div className="flex items-center gap-3 my-4">
-      <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-      <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>ou preenche manualmente</span>
-      <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-    </div>
-  </div>
-)}
+        {/* ── STEP 1: QUEM ÉS TU ── */}
+        {step === 1 && (
+          <div>
+            <h2 className="text-2xl font-black mb-1" style={{ color: 'var(--text)', letterSpacing: '-0.03em' }}>
+              Quem és tu?
+            </h2>
+            <p className="text-sm mb-6" style={{ color: 'var(--text-muted)' }}>
+              Vamos criar o teu perfil de atleta.
+            </p>
 
-{/* Badge Strava se pré-preenchido */}
-{stravaPrefill && (
-  <div className="flex items-center gap-3 mb-6 p-3 rounded-2xl"
-    style={{ background: 'rgba(252,76,2,0.10)', border: '1px solid rgba(252,76,2,0.25)' }}>
-    {stravaPrefill.avatar_url && (
-      <img src={stravaPrefill.avatar_url} alt="Strava" className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
-    )}
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-1.5 mb-0.5">
-        <span style={{ color: '#FC4C02' }}><StravaIcon size={13} /></span>
-        <span className="text-xs font-bold" style={{ color: '#FC4C02' }}>Ligado ao Strava</span>
+            {/* Strava */}
+            {!stravaPrefill ? (
+              <a href={STRAVA_REGISTER_URL}
+                className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl font-bold text-sm mb-6"
+                style={{ background: '#FC4C02', color: 'white' }}>
+                <StravaIcon size={16} />
+                Continuar com Strava
+              </a>
+            ) : (
+              <div className="flex items-center gap-3 p-3 rounded-2xl mb-6"
+                style={{ background: 'rgba(252,76,2,0.10)', border: '1px solid rgba(252,76,2,0.25)' }}>
+                {stravaPrefill.avatar_url && (
+                  <img src={stravaPrefill.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                )}
+                <div>
+                  <p className="text-xs font-bold" style={{ color: '#FC4C02' }}>Ligado ao Strava</p>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{stravaPrefill.name}</p>
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={s.label}>Nome completo</label>
+                <input style={s.input} value={form.name} onChange={e => set('name', e.target.value)}
+                  placeholder="O teu nome"
+                  onFocus={e => e.target.style.borderColor='var(--heh-green)'}
+                  onBlur={e => e.target.style.borderColor='var(--border)'} />
+              </div>
+
+              <div>
+                <label style={s.label}>Sexo</label>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  {[{v:'M',l:'Masculino'},{v:'F',l:'Feminino'}].map(({v,l}) => (
+                    <button key={v} type="button" onClick={() => set('sex', v)}
+                      style={{
+                        flex: 1, padding: '13px 0', borderRadius: 14, fontSize: 14, fontWeight: 700,
+                        cursor: 'pointer', transition: 'all 0.15s',
+                        background: form.sex===v ? 'rgba(184,255,0,0.12)' : 'var(--surface2)',
+                        color: form.sex===v ? 'var(--heh-green)' : 'var(--text-muted)',
+                        border: form.sex===v ? '1.5px solid rgba(184,255,0,0.5)' : '1px solid var(--border)',
+                      }}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label style={s.label}>Data de nascimento</label>
+                <input type="date" style={s.input} value={form.date_of_birth}
+                  onChange={e => set('date_of_birth', e.target.value)}
+                  onFocus={e => e.target.style.borderColor='var(--heh-green)'}
+                  onBlur={e => e.target.style.borderColor='var(--border)'} />
+              </div>
+
+              <div>
+                <label style={s.label}>País</label>
+                <select style={{ ...s.input, appearance: 'none' }}
+                  value={form.country} onChange={e => set('country', e.target.value)}>
+                  {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label style={s.label}>Email</label>
+                <input type="email" style={s.input} value={form.email}
+                  onChange={e => set('email', e.target.value)} placeholder="o.teu@email.pt"
+                  onFocus={e => e.target.style.borderColor='var(--heh-green)'}
+                  onBlur={e => e.target.style.borderColor='var(--border)'} />
+              </div>
+
+              <div>
+                <label style={s.label}>Palavra-passe</label>
+                <input type="password" style={s.input} value={form.password}
+                  onChange={e => set('password', e.target.value)} placeholder="mínimo 6 caracteres"
+                  onFocus={e => e.target.style.borderColor='var(--heh-green)'}
+                  onBlur={e => e.target.style.borderColor='var(--border)'} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── STEP 2: DESPORTO ── */}
+        {step === 2 && (
+          <div>
+            <h2 className="text-2xl font-black mb-1" style={{ color: 'var(--text)', letterSpacing: '-0.03em' }}>
+              O teu atletismo
+            </h2>
+            <p className="text-sm mb-8" style={{ color: 'var(--text-muted)' }}>
+              Conta-nos mais sobre o que gostas de fazer.
+            </p>
+
+            {/* Experiência */}
+            <div className="mb-8">
+              <p className="text-base font-bold mb-3" style={{ color: 'var(--text)' }}>
+                Tens experiência em corrida ou atletismo?
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {[
+                  { v: 'runner', l: 'Sim, já pratico', d: 'Tenho experiência ou pratico desporto regularmente' },
+                  { v: 'beginner', l: 'Estou a começar', d: 'Nunca pratiquei ou quero recomeçar do zero' },
+                ].map(({ v, l, d }) => (
+                  <button key={v} type="button" onClick={() => set('experience', v)}
+                    style={{
+                      padding: '16px 18px', borderRadius: 16, textAlign: 'left', cursor: 'pointer',
+                      background: form.experience===v ? 'rgba(184,255,0,0.10)' : 'var(--surface)',
+                      border: form.experience===v ? '2px solid rgba(184,255,0,0.5)' : '1.5px solid var(--border)',
+                      transition: 'all 0.15s',
+                    }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontWeight: 700, fontSize: 15, color: form.experience===v ? 'var(--heh-green)' : 'var(--text)' }}>{l}</span>
+                      {form.experience===v && <Check size={16} style={{ color: 'var(--heh-green)' }} />}
+                    </div>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, display: 'block' }}>{d}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Provas — só se tiver experiência */}
+            {form.experience === 'runner' && (
+              <div className="mb-8">
+                <p className="text-base font-bold mb-3" style={{ color: 'var(--text)' }}>
+                  Em que provas te especializas?
+                </p>
+                {EVENT_GROUPS.map(({ label, events }) => (
+                  <div key={label} className="mb-4">
+                    <p className="text-xs font-bold uppercase tracking-wider mb-2"
+                      style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>{label}</p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {events.map(ev => {
+                        const sel = form.events.includes(ev)
+                        return (
+                          <button key={ev} type="button" onClick={() => toggleEvent(ev)}
+                            style={{
+                              padding: '8px 14px', borderRadius: 20, fontSize: 13, fontWeight: 600,
+                              cursor: 'pointer', transition: 'all 0.15s',
+                              background: sel ? 'rgba(184,255,0,0.12)' : 'var(--surface2)',
+                              color: sel ? 'var(--heh-green)' : 'var(--text-muted)',
+                              border: sel ? '1.5px solid rgba(184,255,0,0.45)' : '1px solid var(--border)',
+                            }}>
+                            {ev}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Objetivo */}
+            {form.experience && (
+              <div className="mb-8">
+                <p className="text-base font-bold mb-3" style={{ color: 'var(--text)' }}>
+                  Qual é o teu objetivo?
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {GOALS.map(({ id, label, icon }) => {
+                    const sel = form.goal === id
+                    return (
+                      <button key={id} type="button" onClick={() => set('goal', id)}
+                        style={{
+                          padding: '14px 18px', borderRadius: 14, textAlign: 'left',
+                          cursor: 'pointer', transition: 'all 0.15s',
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          background: sel ? 'rgba(184,255,0,0.10)' : 'var(--surface)',
+                          border: sel ? '2px solid rgba(184,255,0,0.5)' : '1.5px solid var(--border)',
+                        }}>
+                        <span style={{ fontWeight: 700, fontSize: 14, color: sel ? 'var(--heh-green)' : 'var(--text)' }}>
+                          {icon} {label}
+                        </span>
+                        {sel && <Check size={16} style={{ color: 'var(--heh-green)' }} />}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Melhor tempo 10k */}
+            {needsPR && (
+              <div className="mb-4">
+                <p className="text-base font-bold mb-1" style={{ color: 'var(--text)' }}>
+                  Qual é o teu melhor tempo nos 10k?
+                </p>
+                <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+                  Serve para colocar-te no grupo certo. Não há problema em não saberes.
+                </p>
+                {!form.no_pr && (
+                  <input style={{ ...s.input, marginBottom: 10 }}
+                    value={form.pr_10km} onChange={e => set('pr_10km', e.target.value)}
+                    placeholder="Ex: 45:30"
+                    onFocus={e => e.target.style.borderColor='var(--heh-green)'}
+                    onBlur={e => e.target.style.borderColor='var(--border)'} />
+                )}
+                <button type="button" onClick={() => set('no_pr', !form.no_pr)}
+                  style={{
+                    padding: '10px 16px', borderRadius: 12, fontSize: 13, fontWeight: 600,
+                    cursor: 'pointer', transition: 'all 0.15s',
+                    background: form.no_pr ? 'rgba(184,255,0,0.10)' : 'var(--surface2)',
+                    color: form.no_pr ? 'var(--heh-green)' : 'var(--text-muted)',
+                    border: form.no_pr ? '1.5px solid rgba(184,255,0,0.45)' : '1px solid var(--border)',
+                    display: 'flex', alignItems: 'center', gap: 8,
+                  }}>
+                  {form.no_pr && <Check size={14} />}
+                  Nunca fiz / Não sei o tempo
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── STEP 3: TREINADOR + CONTA ── */}
+        {step === 3 && (
+          <div>
+            <h2 className="text-2xl font-black mb-1" style={{ color: 'var(--text)', letterSpacing: '-0.03em' }}>
+              Quase lá!
+            </h2>
+            <p className="text-sm mb-8" style={{ color: 'var(--text-muted)' }}>
+              Escolhe o teu treinador e cria a conta.
+            </p>
+
+            {/* Coach */}
+            {coaches.length > 0 && (
+              <div className="mb-8">
+                <p className="text-base font-bold mb-3" style={{ color: 'var(--text)' }}>
+                  Escolhe o teu treinador
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {coaches.map(coach => {
+                    const sel = form.coach_id === coach.id
+                    return (
+                      <button key={coach.id} type="button" onClick={() => set('coach_id', coach.id)}
+                        style={{
+                          padding: '14px 16px', borderRadius: 16, textAlign: 'left', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', gap: 14, transition: 'all 0.15s',
+                          background: sel ? 'rgba(184,255,0,0.10)' : 'var(--surface)',
+                          border: sel ? '2px solid rgba(184,255,0,0.5)' : '1.5px solid var(--border)',
+                        }}>
+                        <div style={{
+                          width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                          background: sel ? 'rgba(184,255,0,0.15)' : 'var(--surface2)',
+                          color: sel ? 'var(--heh-green)' : 'var(--text-muted)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontWeight: 900, fontSize: 18,
+                        }}>
+                          {coach.name.charAt(0)}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontWeight: 700, fontSize: 14, color: sel ? 'var(--heh-green)' : 'var(--text)' }}>{coach.name}</p>
+                          <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{coach.email}</p>
+                        </div>
+                        {sel && <Check size={16} style={{ color: 'var(--heh-green)' }} />}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* GDPR */}
+            <label style={{
+              display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer',
+              padding: '14px', borderRadius: 14, marginBottom: 24,
+              background: form.gdpr_consent ? 'rgba(184,255,0,0.08)' : 'var(--surface)',
+              border: form.gdpr_consent ? '1.5px solid rgba(184,255,0,0.4)' : '1.5px solid var(--border)',
+            }}>
+              <input type="checkbox" checked={form.gdpr_consent}
+                onChange={e => set('gdpr_consent', e.target.checked)}
+                style={{ width: 18, height: 18, marginTop: 1, accentColor: 'var(--heh-green)', flexShrink: 0 }} />
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                Autorizo a <strong style={{ color: 'var(--text)' }}>Hoje é Hoje</strong> a recolher e tratar os meus dados pessoais
+                exclusivamente para fins de gestão de treinos e análise de desempenho desportivo,
+                em conformidade com o RGPD.
+              </span>
+            </label>
+
+            {error && (
+              <div style={{ background: 'rgba(255,69,58,0.12)', color: '#FF453A', borderRadius: 12, padding: '12px 16px', marginBottom: 16, display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
+                <AlertCircle size={15} /> {error}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── BOTÃO AVANÇAR / CRIAR CONTA ── */}
+        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '16px 20px 32px', background: 'linear-gradient(to top, var(--dark) 70%, transparent)', maxWidth: 390, margin: '0 auto' }}>
+          {step < TOTAL ? (
+            <button
+              onClick={() => { setError(''); setStep(s => s + 1) }}
+              disabled={!canAdvance[step]}
+              style={{
+                width: '100%', padding: '16px', borderRadius: 16, fontWeight: 900, fontSize: 15,
+                border: 'none', cursor: canAdvance[step] ? 'pointer' : 'not-allowed',
+                background: canAdvance[step] ? 'var(--heh-green)' : 'var(--surface2)',
+                color: canAdvance[step] ? '#080808' : 'var(--text-muted)',
+                transition: 'all 0.15s', letterSpacing: '-0.01em',
+              }}>
+              Próximo →
+            </button>
+          ) : (
+            <button
+              onClick={handleSubmit}
+              disabled={loading || !canAdvance[3]}
+              style={{
+                width: '100%', padding: '16px', borderRadius: 16, fontWeight: 900, fontSize: 15,
+                border: 'none', cursor: 'pointer',
+                background: canAdvance[3] ? 'var(--heh-green)' : 'var(--surface2)',
+                color: canAdvance[3] ? '#080808' : 'var(--text-muted)',
+                opacity: loading ? 0.7 : 1, transition: 'all 0.15s',
+              }}>
+              {loading ? 'A criar conta...' : 'Criar conta'}
+            </button>
+          )}
+          {step === 1 && (
+            <p style={{ textAlign: 'center', marginTop: 12, fontSize: 13, color: 'var(--text-muted)' }}>
+              Já tens conta? <Link to="/login" style={{ color: 'var(--heh-green)', fontWeight: 700 }}>Entrar</Link>
+            </p>
+          )}
+        </div>
       </div>
-      <p className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{stravaPrefill.name}</p>
-      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Dados pré-preenchidos — revê e confirma</p>
     </div>
-  </div>
-)}
-
-{/* Step indicator */}
-<div className="flex items-center gap-2 mb-8">
-{STEPS.map((s, i) => (
-<div key={s} className="flex-1 flex flex-col items-center gap-1">
-<div className="h-1 w-full rounded-full transition-all"
-style={{ background: i <= step ? 'var(--orange)' : 'var(--surface3)' }} />
-<span className="text-xs font-medium" style={{ color: i === step ? 'var(--orange)' : 'var(--text-muted)' }}>
-{s}
-</span>
-</div>
-))}
-</div>
-
-<form onSubmit={handleSubmit}>
-
-{/* STEP 0 — Dados pessoais */}
-{step === 0 && (
-<div className="space-y-4">
-<div>
-<label style={labelStyle}>Nome completo</label>
-<input value={form.name} onChange={e => set('name', e.target.value)} required
-placeholder="João Silva" style={inputStyle}
-onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-</div>
-<div className="grid grid-cols-2 gap-3">
-<div>
-<label style={labelStyle}>Sexo</label>
-<div className="flex gap-2">
-{[{ v: 'M', l: 'Masc.' }, { v: 'F', l: 'Fem.' }].map(({ v, l }) => (
-<button key={v} type="button" onClick={() => set('sex', v)}
-className="flex-1 py-3 rounded-xl text-sm font-bold transition-all"
-style={{
-background: form.sex === v ? 'rgba(184,255,0,0.12)' : 'var(--surface2)',
-color: form.sex === v ? 'var(--heh-green)' : 'var(--text-muted)',
-border: form.sex === v ? '1px solid rgba(184,255,0,0.35)' : '1px solid var(--border)',
-}}>{l}</button>
-))}
-</div>
-</div>
-<div>
-<label style={labelStyle}>Data de nascimento</label>
-<input type="date" value={form.date_of_birth} onChange={e => set('date_of_birth', e.target.value)}
-style={inputStyle}
-onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-</div>
-</div>
-<div>
-<label style={labelStyle}>Nacionalidade</label>
-<input value={form.nationality} onChange={e => set('nationality', e.target.value)}
-placeholder="Portuguesa" style={inputStyle}
-onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-</div>
-<div>
-<label style={labelStyle}>Localidade</label>
-<input value={form.location} onChange={e => set('location', e.target.value)}
-placeholder="Lisboa" style={inputStyle}
-onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-</div>
-<div className="grid grid-cols-2 gap-3">
-<div>
-<label style={labelStyle}>Código Postal</label>
-<input value={form.postal_code} onChange={e => set('postal_code', e.target.value)}
-placeholder="1000-001" style={inputStyle}
-onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-</div>
-<div>
-<label style={labelStyle}>NIF</label>
-<input value={form.nif} onChange={e => set('nif', e.target.value)}
-placeholder="123456789" maxLength={9} style={inputStyle}
-onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-</div>
-</div>
-</div>
-)}
-
-{/* STEP 1 — Desporto */}
-{step === 1 && (
-<div className="space-y-5">
-<div>
-<label style={labelStyle}>Modalidade(s)</label>
-<MultiSelect options={MODALITIES} value={form.modalities}
-onChange={v => { set('modalities', v); set('specializations', []) }}
-columns={3} />
-</div>
-
-{form.modalities.length > 0 && (
-<SpecializationsSection
-modalities={form.modalities}
-value={form.specializations}
-onChange={v => set('specializations', v)} />
-)}
-
-<div>
-<label style={labelStyle}>PR 10km (MM:SS)</label>
-<input value={form.pr_10km} onChange={e => set('pr_10km', e.target.value)}
-placeholder="48:30" className="pace-mono" style={inputStyle}
-onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-<p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-Usado para determinar o teu grupo de treino
-</p>
-</div>
-
-<div>
-<label style={labelStyle}>PR 5km (MM:SS) — opcional</label>
-<input value={form.pr_5km} onChange={e => set('pr_5km', e.target.value)}
-placeholder="22:30" className="pace-mono" style={inputStyle}
-onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-</div>
-
-{autoGroup && (
-<GroupBadge group={autoGroup} />
-)}
-</div>
-)}
-
-{/* STEP 2 — Treinador */}
-{step === 2 && (
-<div className="space-y-3">
-<label style={labelStyle}>Seleciona o teu treinador</label>
-{coaches.length === 0 ? (
-<p className="text-sm" style={{ color: 'var(--text-muted)' }}>A carregar treinadores...</p>
-) : (
-coaches.map(coach => (
-<button key={coach.id} type="button"
-onClick={() => set('coach_id', coach.id)}
-className="w-full flex items-center gap-4 p-4 rounded-2xl text-left transition-all"
-style={{
-background: form.coach_id === coach.id ? 'rgba(184,255,0,0.10)' : 'var(--surface)',
-border: form.coach_id === coach.id ? '1px solid rgba(184,255,0,0.35)' : '1px solid var(--border)',
-}}>
-<div className="w-12 h-12 rounded-xl flex items-center justify-center font-black text-lg flex-shrink-0"
-style={{ background: 'rgba(184,255,0,0.12)', color: 'var(--heh-green)' }}>
-{coach.name.charAt(0)}
-</div>
-<div className="flex-1">
-<p className="font-bold text-sm" style={{ color: 'var(--text)' }}>{coach.name}</p>
-<p className="text-xs" style={{ color: 'var(--text-muted)' }}>{coach.email}</p>
-</div>
-{form.coach_id === coach.id && (
-<CheckCircle2 size={20} style={{ color: 'var(--orange)', flexShrink: 0 }} />
-)}
-</button>
-))
-)}
-</div>
-)}
-
-{/* STEP 3 — Conta */}
-{step === 3 && (
-<div className="space-y-4">
-<div>
-<label style={labelStyle}>Email</label>
-<input type="email" value={form.email} onChange={e => set('email', e.target.value)} required
-placeholder="o.teu@email.pt" style={inputStyle}
-onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-</div>
-<div>
-<label style={labelStyle}>Palavra-passe</label>
-<input type="password" value={form.password} onChange={e => set('password', e.target.value)} required
-placeholder="••••••••" minLength={6} style={inputStyle}
-onFocus={e => e.target.style.borderColor = 'var(--orange)'}
-onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-<p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Mínimo 6 caracteres</p>
-</div>
-
-{/* Summary */}
-<div className="rounded-2xl p-4 space-y-2" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-<p className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)' }}>Resumo</p>
-{[
-{ l: 'Nome', v: form.name },
-{ l: 'Sexo', v: form.sex === 'M' ? 'Masculino' : 'Feminino' },
-{ l: 'Modalidades', v: form.modalities.join(', ') },
-{ l: 'PR 10km', v: form.pr_10km },
-{ l: 'Grupo', v: autoGroup || '—' },
-{ l: 'Treinador', v: coaches.find(c => c.id === form.coach_id)?.name || '—' },
-].map(({ l, v }) => (
-<div key={l} className="flex justify-between text-sm">
-<span style={{ color: 'var(--text-muted)' }}>{l}</span>
-<span className="font-semibold" style={{ color: l === 'Grupo' ? 'var(--orange)' : 'var(--text)' }}>{v}</span>
-</div>
-))}
-</div>
-
-{/* GDPR Consent */}
-<div className="rounded-2xl p-4" style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}>
-<label className="flex items-start gap-3 cursor-pointer">
-<input type="checkbox" checked={form.gdpr_consent} onChange={e => set('gdpr_consent', e.target.checked)}
-className="mt-0.5 flex-shrink-0" style={{ accentColor: 'var(--orange)', width: 18, height: 18 }} />
-<div>
-<p className="text-xs font-bold mb-1" style={{ color: 'var(--text)' }}>
-Consentimento de utilização de dados
-</p>
-<p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-Autorizo a Hoje é Hoje a recolher e tratar os meus dados pessoais (nome, email, NIF, data de nascimento, localização e dados desportivos) exclusivamente para fins de gestão de treinos, comunicação e análise de desempenho desportivo, em conformidade com o{' '}
-<strong style={{ color: 'var(--text)' }}>Regulamento (UE) 2016/679 (RGPD)</strong> e a{' '}
-<strong style={{ color: 'var(--text)' }}>Lei n.º 58/2019</strong>. Os dados não serão partilhados com terceiros sem consentimento explícito. Posso exercer os meus direitos de acesso, retificação e eliminação através do contacto com o clube.
-</p>
-</div>
-</label>
-</div>
-
-{error && (
-<div className="flex items-center gap-2 rounded-xl px-4 py-3 text-sm"
-style={{ background: 'rgba(255,69,58,0.12)', color: '#FF453A' }}>
-<AlertCircle size={15} /> {error}
-</div>
-)}
-</div>
-)}
-
-{/* Navigation */}
-<div className="flex gap-3 mt-8">
-{step > 0 && (
-<button type="button" onClick={() => setStep(s => s - 1)}
-className="flex-1 py-4 rounded-xl text-sm font-bold"
-style={{ background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)' }}>
-← Voltar
-</button>
-)}
-{step < STEPS.length - 1 ? (
-<button type="button"
-onClick={() => canNext[step] && setStep(s => s + 1)}
-className="flex-1 py-4 rounded-xl text-sm font-bold transition-all"
-style={{
-background: canNext[step] ? 'var(--orange)' : 'var(--surface)',
-color: canNext[step] ? 'white' : 'var(--text-muted)',
-border: canNext[step] ? 'none' : '1px solid var(--border)',
-}}>
-Continuar →
-</button>
-) : (
-<button type="submit" disabled={loading || !canNext[step]}
-className="flex-1 py-4 rounded-xl text-sm font-bold disabled:opacity-50"
-style={{ background: 'var(--orange)', color: 'white' }}>
-{loading ? 'A criar conta...' : 'Criar conta'}
-</button>
-)}
-</div>
-</form>
-
-<p className="text-center text-sm mt-6" style={{ color: 'var(--text-muted)' }}>
-Já tens conta?{' '}
-<Link to="/login" style={{ color: 'var(--orange)', fontWeight: 700 }}>Entrar</Link>
-</p>
-</div>
-</div>
-)
+  )
 }

@@ -15,7 +15,7 @@ const StravaRegisterCallback = lazy(() => import('./pages/StravaRegisterCallback
 const MyPlan        = lazy(() => import('./pages/athlete/MyPlan'))
 const MyRaces       = lazy(() => import('./pages/athlete/MyRaces'))
 const MyResults     = lazy(() => import('./pages/athlete/MyResults'))
-const MyProfile     = lazy(() => import('./pages/athlete/MyProfile'))
+const AthleteProfile = lazy(() => import('./pages/AthleteProfile'))
 const CoachLayout   = lazy(() => import('./pages/coach/CoachLayout'))
 const Athletes      = lazy(() => import('./pages/coach/Athletes'))
 const GeneralPlan   = lazy(() => import('./pages/coach/GeneralPlan'))
@@ -77,7 +77,7 @@ export default function App() {
             <Route path="/plano"      element={<AthleteShell><MyPlan /></AthleteShell>} />
             <Route path="/corridas"   element={<AthleteShell><MyRaces /></AthleteShell>} />
             <Route path="/resultados" element={<AthleteShell><MyResults /></AthleteShell>} />
-            <Route path="/perfil"     element={<AthleteShell><MyProfile /></AthleteShell>} />
+            <Route path="/perfil"     element={<AthleteShell><AthleteProfile /></AthleteShell>} />
 
             {/* Área do coach */}
             <Route path="/coach" element={
