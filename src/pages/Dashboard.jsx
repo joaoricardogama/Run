@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
-import { Flame, Trophy, Users, ChevronRight, RefreshCw, Zap } from 'lucide-react'
+import { Flame, Trophy, RefreshCw, ChevronRight, Zap } from 'lucide-react'
 import LoadingSpinner from '../components/LoadingSpinner'
 import BottomNav from '../components/BottomNav'
 import WorkoutUpload from '../components/WorkoutUpload'
@@ -11,7 +11,7 @@ const STRAVA_CLIENT_ID = '261127'
 const STRAVA_REDIRECT  = 'https://run-blush.vercel.app/strava/callback'
 const STRAVA_AUTH_URL  = `https://www.strava.com/oauth/authorize?client_id=${STRAVA_CLIENT_ID}&redirect_uri=${encodeURIComponent(STRAVA_REDIRECT)}&response_type=code&scope=activity:read_all&approval_prompt=auto`
 
-const DAYS_SHORT = ['S','T','Q','Q','S','S','D']
+const DAYS_SHORT = ['SEG','TER','QUA','QUI','SEX','SÁB','DOM']
 const DAYS_PT    = ['domingo','segunda','terça','quarta','quinta','sexta','sábado']
 
 function getWeekDates() {
@@ -27,11 +27,48 @@ function getWeekDates() {
 
 function toYMD(d) { return d.toISOString().split('T')[0] }
 
-function greeting() {
-  const h = new Date().getHours()
-  if (h < 12) return 'BOM DIA'
-  if (h < 18) return 'BOA TARDE'
-  return 'BOA NOITE'
+/* ── Workout type definitions ── */
+const WORKOUT_TYPES = [
+  { type: 'CCL',     label: 'Corrida Leve',   emoji: '🏃',
+    grad: 'linear-gradient(135deg, #1a4a2e 0%, #0d2e1a 100%)', accent: '#30D158', points: 10 },
+  { type: 'CCN',     label: 'Ritmo Moderado', emoji: '⚡',
+    grad: 'linear-gradient(135deg, #4a3500 0%, #2e2000 100%)', accent: '#FFD60A', points: 15 },
+  { type: 'CCR',     label: 'Intervalos',     emoji: '🔥',
+    grad: 'linear-gradient(135deg, #4a1a00 0%, #2e0d00 100%)', accent: '#FF6930', points: 20 },
+  { type: 'Pista',   label: 'Pista',          emoji: '🎯',
+    grad: 'linear-gradient(135deg, #001a4a 0%, #00102e 100%)', accent: '#0A84FF', points: 20 },
+  { type: 'Subidas', label: 'Subidas',        emoji: '⛰️',
+    grad: 'linear-gradient(135deg, #2a0a4a 0%, #1a052e 100%)', accent: '#BF5AF2', points: 20 },
+  { type: 'Força',   label: 'Força',          emoji: '💪',
+    grad: 'linear-gradient(135deg, #003a3a 0%, #00252 100%)', accent: '#00D4FF', points: 10 },
+  { type: 'Prova',   label: 'Prova / Corrida',emoji: '🏁',
+    grad: 'linear-gradient(135deg, #4a0a1a 0%, #2e0510 100%)', accent: '#FF2D55', points: 30 },
+]
+
+const TYPE_META = Object.fromEntries(WORKOUT_TYPES.map(w => [w.type, w]))
+const DEFAULT_TYPE = WORKOUT_TYPES[0]
+
+function getTypeMeta(type) {
+  return TYPE_META[type] || DEFAULT_TYPE
+}
+
+/* ── Hero gradient based on type ── */
+const HERO_THEMES = {
+  CCL:      { grad: 'linear-gradient(180deg, #0d2e1a 0%, #080808 100%)', accent: '#30D158',  icon: '🏃', label: 'Corrida Leve'     },
+  CCN:      { grad: 'linear-gradient(180deg, #2e2000 0%, #080808 100%)', accent: '#FFD60A',  icon: '⚡', label: 'Moderado'         },
+  CCR:      { grad: 'linear-gradient(180deg, #2e0d00 0%, #080808 100%)', accent: '#FF6930',  icon: '🔥', label: 'Ritmo de Prova'   },
+  Pista:    { grad: 'linear-gradient(180deg, #00102e 0%, #080808 100%)', accent: '#0A84FF',  icon: '🎯', label: 'Sessão de Pista'  },
+  Subidas:  { grad: 'linear-gradient(180deg, #1a052e 0%, #080808 100%)', accent: '#BF5AF2',  icon: '⛰️', label: 'Treino de Subidas'},
+  Força:    { grad: 'linear-gradient(180deg, #002525 0%, #080808 100%)', accent: '#00D4FF',  icon: '💪', label: 'Força'            },
+  Prova:    { grad: 'linear-gradient(180deg, #2e0510 0%, #080808 100%)', accent: '#FF2D55',  icon: '🏁', label: 'Prova'            },
+  Descanso: { grad: 'linear-gradient(180deg, #0e0e0e 0%, #080808 100%)', accent: '#555',     icon: '😴', label: 'Descanso'         },
+  default:  { grad: 'linear-gradient(180deg, #0a1a0a 0%, #080808 100%)', accent: '#B8FF00',  icon: '🏃', label: 'Treino'           },
+}
+
+function getHeroTheme(sessions) {
+  if (!sessions || sessions.length === 0) return HERO_THEMES.Descanso
+  const type = sessions[0]?.type
+  return HERO_THEMES[type] || HERO_THEMES.default
 }
 
 function StravaIcon({ size = 16 }) {
@@ -42,28 +79,9 @@ function StravaIcon({ size = 16 }) {
   )
 }
 
-const TYPE_COLORS = {
-  CCL:      { bg: 'rgba(184,255,0,0.15)',    text: 'var(--heh-green)' },
-  CCN:      { bg: 'rgba(255,214,10,0.15)',   text: '#FFD60A' },
-  CCR:      { bg: 'rgba(255,69,58,0.15)',    text: '#FF453A' },
-  Pista:    { bg: 'rgba(10,132,255,0.15)',   text: '#0A84FF' },
-  Descanso: { bg: 'rgba(255,255,255,0.07)',  text: 'var(--text-muted)' },
-  default:  { bg: 'rgba(184,255,0,0.15)',    text: 'var(--heh-green)' },
-}
-
-function TypeBadge({ type }) {
-  const clr = TYPE_COLORS[type] || TYPE_COLORS.default
-  return (
-    <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 6, background: clr.bg, color: clr.text, textTransform: 'uppercase' }}>
-      {type}
-    </span>
-  )
-}
-
-// ── Coach dashboard ───────────────────────────────────────────────
+/* ── Coach dashboard (unchanged) ── */
 function CoachDashboard({ navigate, signOut }) {
   const [stats, setStats] = useState({ total: 0, active: 0 })
-
   useEffect(() => {
     async function load() {
       const { count: total } = await supabase.from('athletes').select('id', { count: 'exact' }).eq('active', true).eq('is_coach', false)
@@ -74,18 +92,14 @@ function CoachDashboard({ navigate, signOut }) {
     }
     load()
   }, [])
-
   return (
     <div className="coach-layout" style={{ background: 'var(--dark)' }}>
-      {/* Sidebar */}
       <aside className="coach-sidebar" style={{ background: 'var(--surface)', borderRight: '1px solid var(--border)', flexDirection: 'column' }}>
         <div className="coach-sidebar-inner">
-          {/* Logo always visible */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span style={{ fontWeight: 900, fontSize: 18, letterSpacing: '-0.03em' }}>H<span style={{ color: 'var(--heh-green)' }}>é</span>H</span>
             <span style={{ color: 'var(--heh-green)', fontSize: 8 }}>✦</span>
           </div>
-          {/* Mobile: show quick nav inline */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button onClick={() => navigate('/coach/atletas')}
               style={{ padding: '8px 14px', borderRadius: 10, background: 'rgba(184,255,0,0.10)', border: 'none', cursor: 'pointer', color: 'var(--heh-green)', fontWeight: 700, fontSize: 13 }}>
@@ -97,7 +111,6 @@ function CoachDashboard({ navigate, signOut }) {
             </button>
           </div>
         </div>
-        {/* Desktop-only sidebar content */}
         <div className="coach-sidebar-meta" style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', borderTop: '1px solid var(--border)' }}>
           <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)' }}>Treinador</p>
           <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>HéH Focus</p>
@@ -115,26 +128,19 @@ function CoachDashboard({ navigate, signOut }) {
           </button>
         </div>
       </aside>
-
-      {/* Main */}
       <main className="coach-main">
         <h1 style={{ fontWeight: 900, fontSize: 'clamp(24px, 5vw, 36px)', letterSpacing: '-0.04em', fontStyle: 'italic', marginBottom: 4, color: 'var(--text)' }}>COACH HQ</h1>
         <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 32 }}>Visão geral do esquadrão</p>
-
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16, marginBottom: 40 }}>
-          {[
-            { label: 'ATLETAS TOTAIS',   value: stats.total  },
-            { label: 'ATIVOS NA SEMANA', value: stats.active },
-          ].map(({ label, value }) => (
+          {[{ label: 'ATLETAS TOTAIS', value: stats.total }, { label: 'ATIVOS NA SEMANA', value: stats.active }].map(({ label, value }) => (
             <div key={label} style={{ background: 'var(--surface)', borderRadius: 16, padding: '20px 24px', border: '1px solid var(--border)' }}>
               <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 8 }}>{label}</p>
               <p style={{ fontSize: 36, fontWeight: 900, color: 'var(--text)', letterSpacing: '-0.04em' }}>{value}</p>
             </div>
           ))}
         </div>
-
         <button onClick={() => navigate('/coach/atletas')}
-          style={{ padding: '14px 28px', borderRadius: 12, background: 'var(--heh-green)', color: '#080808', fontWeight: 900, fontSize: 14, border: 'none', cursor: 'pointer', letterSpacing: '-0.01em' }}>
+          style={{ padding: '14px 28px', borderRadius: 12, background: 'var(--heh-green)', color: '#080808', fontWeight: 900, fontSize: 14, border: 'none', cursor: 'pointer' }}>
           Ver atletas →
         </button>
       </main>
@@ -142,7 +148,7 @@ function CoachDashboard({ navigate, signOut }) {
   )
 }
 
-// ── Main export ───────────────────────────────────────────────────
+/* ── Athlete Dashboard ── */
 export default function Dashboard() {
   const { user, athlete, isCoach, loading, signOut, refreshAthlete } = useAuth()
   const navigate = useNavigate()
@@ -150,15 +156,16 @@ export default function Dashboard() {
   const [weekDates]   = useState(getWeekDates)
   const [completions, setCompletions] = useState([])
   const [ranking,     setRanking]     = useState([])
-  const [todayPlan,   setTodayPlan]   = useState([])   // sessões do plano de hoje
-  const [nextDays,    setNextDays]    = useState([])   // próximos 3 dias com plano
+  const [todayPlan,   setTodayPlan]   = useState([])
   const [loadingData, setLoadingData] = useState(true)
   const [marking,     setMarking]     = useState(false)
+  const [markType,    setMarkType]    = useState(null)
   const [syncing,     setSyncing]     = useState(false)
   const [syncMsg,     setSyncMsg]     = useState('')
+  const [showUpload,  setShowUpload]  = useState(false)
 
   const today    = toYMD(new Date())
-  const todayDow = DAYS_PT[new Date().getDay()]   // 'segunda', 'terça', ...
+  const todayDow = DAYS_PT[new Date().getDay()]
 
   useEffect(() => {
     if (loading) return
@@ -173,13 +180,11 @@ export default function Dashboard() {
     const weekStart = toYMD(weekDates[0])
     const weekEnd   = toYMD(weekDates[6])
 
-    // Completions desta semana
     const { data: myComp } = await supabase
-      .from('training_completions').select('date,points,session_label,confirmed_by_strava')
+      .from('training_completions').select('date,points,session_label,confirmed_by_strava,source,ai_summary,distance_km,pace_avg,hr_avg,cadence_avg')
       .eq('athlete_id', athlete.id).gte('date', weekStart).lte('date', weekEnd)
     setCompletions(myComp || [])
 
-    // Plano geral desta semana
     const { data: plan } = await supabase
       .from('general_plans').select('content').gte('week_start', weekStart).lte('week_start', weekEnd)
       .order('week_start', { ascending: false }).limit(1).maybeSingle()
@@ -187,20 +192,8 @@ export default function Dashboard() {
     if (plan?.content && athlete.group) {
       const groupPlan = plan.content[athlete.group] || {}
       setTodayPlan(groupPlan[todayDow] || [])
-
-      // Próximos 3 dias
-      const upcoming = []
-      for (let i = 1; i <= 6 && upcoming.length < 3; i++) {
-        const d   = weekDates[(weekDates.findIndex(d => toYMD(d) === today) + i) % 7]
-        if (!d) continue
-        const dow = DAYS_PT[d.getDay()]
-        const sessions = groupPlan[dow] || []
-        if (sessions.length > 0) upcoming.push({ date: d, dow, sessions })
-      }
-      setNextDays(upcoming)
     }
 
-    // Ranking do grupo
     if (athlete.group) {
       const { data: groupAthletes } = await supabase
         .from('athletes').select('id,name').eq('group', athlete.group).eq('active', true)
@@ -221,15 +214,18 @@ export default function Dashboard() {
     setLoadingData(false)
   }
 
-  async function markTodayDone() {
+  async function markTodayDone(type = 'Treino') {
     if (!athlete || marking) return
     setMarking(true)
+    setMarkType(type)
+    const meta = getTypeMeta(type)
     await supabase.from('training_completions').upsert(
-      { athlete_id: athlete.id, date: today, session_label: 'Treino', points: 10, confirmed_by_strava: false },
+      { athlete_id: athlete.id, date: today, session_label: type, points: meta.points, confirmed_by_strava: false },
       { onConflict: 'athlete_id,date,session_label' }
     )
     await loadAthleteData()
     setMarking(false)
+    setMarkType(null)
   }
 
   async function getValidToken() {
@@ -280,225 +276,307 @@ export default function Dashboard() {
   const completedMap = new Map(completions.map(c => [c.date, c]))
   const todayEntry   = completedMap.get(today)
   const stravaLinked = !!athlete?.strava_access_token
+  const heroTheme    = getHeroTheme(todayEntry ? [] : todayPlan)
+  const isRestDay    = todayPlan.length === 0
   const MAX_POINTS   = 70
 
-  const STAT_CARDS = [
-    { label: 'TREINOS',  value: `${completions.length}/7`,       accent: false },
-    { label: 'PONTOS',   value: weekPoints,                       accent: false },
-    { label: 'RANKING',  value: myRank > 0 ? `#${myRank}` : '—', accent: myRank === 1 },
-    { label: 'GRUPO',    value: athlete?.group || '—',            accent: false },
-  ]
-
   return (
-    <div style={{ minHeight: '100dvh', background: 'var(--dark)', paddingBottom: 100 }}>
+    <div style={{ minHeight: '100dvh', background: 'var(--dark)', paddingBottom: 88 }}>
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
-        @media (max-width: 480px) {
-          .dash-greeting { padding: 24px 0 16px !important; }
-          .dash-greeting h1 { font-size: 28px !important; }
-        }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        .dash-section { animation: fadeUp 0.3s ease both; }
+        .workout-tile:active { transform: scale(0.96); }
+        .workout-tile { transition: transform 0.12s ease; cursor: pointer; }
       `}</style>
-      <div style={{ maxWidth: 520, margin: '0 auto', padding: '0 16px' }}>
 
-        {/* ── Greeting ── */}
-        <div className="dash-greeting" style={{ padding: '40px 0 24px' }}>
-          <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.15em', color: 'var(--heh-green)', marginBottom: 4 }}>
-            {greeting()},
-          </p>
-          <h1 style={{ fontSize: 32, fontWeight: 900, letterSpacing: '-0.04em', fontStyle: 'italic', color: 'var(--text)', marginBottom: 6, lineHeight: 1 }}>
-            {(athlete?.name || '').split(' ')[0].toUpperCase()}
-          </h1>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      {/* ── Sticky week strip ── */}
+      <div style={{
+        position: 'sticky', top: 0, zIndex: 40,
+        background: 'rgba(8,8,8,0.9)', backdropFilter: 'blur(12px)',
+        borderBottom: '1px solid var(--border)',
+        padding: '12px 16px 10px',
+      }}>
+        {/* Logo row */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ fontWeight: 900, fontSize: 16, letterSpacing: '-0.03em' }}>
+              H<span style={{ color: 'var(--heh-green)' }}>é</span>H
+            </span>
+            <span style={{ color: 'var(--heh-green)', fontSize: 7 }}>✦</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {athlete?.group && (
-              <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: 'rgba(184,255,0,0.12)', color: 'var(--heh-green)' }}>
-                Grupo {athlete.group}
+              <span style={{ fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 20, background: 'rgba(184,255,0,0.12)', color: 'var(--heh-green)' }}>
+                {athlete.group}
               </span>
             )}
-            {athlete?.escalao && (
-              <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>{athlete.escalao}</span>
-            )}
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{(athlete?.name || '').split(' ')[0]}</span>
           </div>
         </div>
-
-        {/* ── 4 Stat cards ── */}
-        <div className="grid-2-4" style={{ marginBottom: 24 }}>
-          {STAT_CARDS.map(({ label, value, accent }) => (
-            <div key={label} style={{ background: accent ? 'var(--heh-green)' : 'var(--surface)', borderRadius: 14, padding: '14px 10px', textAlign: 'center', border: accent ? 'none' : '1px solid var(--border)' }}>
-              <p style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', color: accent ? '#080808' : 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>{label}</p>
-              <p style={{ fontSize: 20, fontWeight: 900, letterSpacing: '-0.03em', color: accent ? '#080808' : 'var(--text)' }}>{value}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* ── Treino de Hoje ── */}
-        <section style={{ marginBottom: 20 }}>
-          <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.15em', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 12 }}>TREINO DE HOJE</p>
-
-          {todayPlan.length > 0 ? (
-            <div style={{ background: 'var(--surface)', borderRadius: 16, border: '1px solid var(--border)', overflow: 'hidden' }}>
-              {todayPlan.map((session, i) => (
-                <div key={i} style={{ padding: '16px 18px', borderBottom: i < todayPlan.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <TypeBadge type={session.type} />
-                    {todayEntry && <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 7px', borderRadius: 5, background: 'rgba(48,209,88,0.15)', color: '#30D158' }}>CONCLUÍDO</span>}
-                  </div>
-                  <p style={{ fontWeight: 800, fontSize: 15, color: 'var(--text)', marginBottom: 4 }}>{session.description || session.type}</p>
-                  <div style={{ display: 'flex', gap: 14 }}>
-                    {session.distance && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{session.distance} km</span>}
-                    {session.pace && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{session.pace}</span>}
-                    {session.notes && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{session.notes}</span>}
-                  </div>
+        {/* Week days */}
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          {weekDates.map((date, i) => {
+            const ds      = toYMD(date)
+            const entry   = completedMap.get(ds)
+            const done    = !!entry
+            const strava  = entry?.confirmed_by_strava || entry?.source === 'strava'
+            const isToday = ds === today
+            return (
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', color: isToday ? 'var(--heh-green)' : 'var(--text-muted)' }}>
+                  {DAYS_SHORT[i]}
+                </span>
+                <div style={{
+                  width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: done ? 13 : 12, fontWeight: 700,
+                  background: done ? (strava ? '#FC4C02' : 'var(--heh-green)') : isToday ? 'rgba(184,255,0,0.15)' : 'transparent',
+                  border: isToday && !done ? '2px solid var(--heh-green)' : done ? 'none' : '1px solid var(--border)',
+                  color: done ? (strava ? 'white' : '#080808') : isToday ? 'var(--heh-green)' : 'var(--text-muted)',
+                }}>
+                  {done ? (strava ? <StravaIcon size={12} /> : '✓') : date.getDate()}
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{ background: 'var(--surface)', borderRadius: 16, padding: '20px 18px', border: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: 13 }}>
-              {todayEntry ? '✓ Treino livre registado hoje' : 'Sem sessão planeada para hoje'}
-            </div>
-          )}
-
-          {/* Mark done / status */}
-          <div style={{ marginTop: 10 }}>
-            {!todayEntry ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <button onClick={markTodayDone} disabled={marking}
-                  style={{ width: '100%', padding: '14px', borderRadius: 14, fontWeight: 800, fontSize: 14, border: 'none', cursor: 'pointer', background: 'var(--heh-green)', color: '#080808', opacity: marking ? 0.7 : 1, transition: 'opacity 0.15s' }}>
-                  {marking ? 'A registar...' : '✓  Marcar treino de hoje'}
-                </button>
-                <WorkoutUpload athlete={athlete} date={today} onComplete={loadAthleteData} />
               </div>
-            ) : (
-              <div>
-                <div style={{ padding: '12px 16px', borderRadius: 14, textAlign: 'center', fontWeight: 700, fontSize: 13, marginBottom: 8,
-                  background: todayEntry.source === 'screenshot' ? 'rgba(10,132,255,0.12)' : todayEntry.confirmed_by_strava ? 'rgba(252,76,2,0.12)' : 'rgba(184,255,0,0.10)',
-                  color: todayEntry.source === 'screenshot' ? '#0A84FF' : todayEntry.confirmed_by_strava ? '#FC4C02' : 'var(--heh-green)' }}>
-                  {todayEntry.source === 'screenshot' ? `📷 Confirmado por screenshot (+${todayEntry.points} pts)` :
-                   todayEntry.confirmed_by_strava ? '🟠 Confirmado pelo Strava (+20 pts)' : `✓ Registado (+${todayEntry.points} pts)`}
-                </div>
-                {/* Show summary if from screenshot */}
-                {todayEntry.source === 'screenshot' && todayEntry.ai_summary && (
-                  <p style={{ fontSize: 12, color: 'var(--text-muted)', padding: '0 4px', lineHeight: 1.5 }}>{todayEntry.ai_summary}</p>
-                )}
-                {todayEntry.source === 'screenshot' && todayEntry.distance_km && (
-                  <div style={{ display: 'flex', gap: 12, padding: '8px 4px', flexWrap: 'wrap' }}>
-                    {todayEntry.distance_km && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{todayEntry.distance_km} km</span>}
-                    {todayEntry.pace_avg && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>⏱ {todayEntry.pace_avg}</span>}
-                    {todayEntry.hr_avg && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>♥ {todayEntry.hr_avg} bpm</span>}
-                    {todayEntry.cadence_avg && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>↻ {todayEntry.cadence_avg} spm</span>}
-                  </div>
-                )}
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ── Hero card ── */}
+      <div style={{
+        background: todayEntry ? 'linear-gradient(180deg, #0d2e1a 0%, #080808 100%)' : heroTheme.grad,
+        padding: '40px 20px 36px',
+        textAlign: 'center',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        {/* Big emoji */}
+        <div style={{ fontSize: 56, marginBottom: 12, lineHeight: 1 }}>
+          {todayEntry
+            ? (todayEntry.source === 'screenshot' ? '📷' : todayEntry.confirmed_by_strava ? '🟠' : '✅')
+            : heroTheme.icon
+          }
+        </div>
+        {/* Status text */}
+        {todayEntry ? (
+          <>
+            <p style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-0.03em', color: 'var(--text)', marginBottom: 4 }}>
+              Treino concluído!
+            </p>
+            <p style={{ fontSize: 13, color: '#30D158', fontWeight: 700, marginBottom: 4 }}>
+              +{todayEntry.points} pontos · {todayEntry.session_label}
+            </p>
+            {todayEntry.distance_km && (
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 10 }}>
+                <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{todayEntry.distance_km} km</span>
+                {todayEntry.pace_avg && <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>⏱ {todayEntry.pace_avg}</span>}
+                {todayEntry.hr_avg && <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>♥ {todayEntry.hr_avg} bpm</span>}
               </div>
             )}
-          </div>
-        </section>
-
-        {/* ── Próximos treinos ── */}
-        {nextDays.length > 0 && (
-          <section style={{ marginBottom: 20 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.15em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>PRÓXIMOS TREINOS</p>
-              <Link to="/plano" style={{ fontSize: 12, fontWeight: 700, color: 'var(--heh-green)', textDecoration: 'none' }}>Ver plano completo ›</Link>
-            </div>
-            <div style={{ background: 'var(--surface)', borderRadius: 16, border: '1px solid var(--border)', overflow: 'hidden' }}>
-              {nextDays.map(({ date, dow, sessions }, i) => {
-                const s = sessions[0]
-                return (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '14px 18px', borderBottom: i < nextDays.length - 1 ? '1px solid var(--border)' : 'none', gap: 14 }}>
-                    <div style={{ width: 3, height: 36, borderRadius: 4, background: 'var(--heh-green)', flexShrink: 0 }} />
-                    <div style={{ flex: 1 }}>
-                      <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
-                        {dow.charAt(0).toUpperCase() + dow.slice(1)}, {date.getDate()} {date.toLocaleDateString('pt-PT', { month: 'short' }).toUpperCase()}
-                      </p>
-                      <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{s?.description || s?.type || 'Treino'}</p>
-                    </div>
-                    {s?.distance && <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)' }}>{s.distance} km</span>}
-                    <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
-                  </div>
-                )
-              })}
-            </div>
-          </section>
+            {todayEntry.ai_summary && (
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, maxWidth: 280, margin: '8px auto 0', lineHeight: 1.5 }}>
+                {todayEntry.ai_summary}
+              </p>
+            )}
+          </>
+        ) : isRestDay ? (
+          <>
+            <p style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-0.03em', color: 'var(--text)', marginBottom: 4 }}>
+              Descansa, {(athlete?.name || '').split(' ')[0]}
+            </p>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+              A recuperação alimenta o próximo treino.
+            </p>
+          </>
+        ) : (
+          <>
+            <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', color: heroTheme.accent, marginBottom: 6, textTransform: 'uppercase' }}>
+              TREINO DE HOJE
+            </p>
+            <p style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-0.03em', color: 'var(--text)', marginBottom: 6, lineHeight: 1.2 }}>
+              {todayPlan[0]?.description || heroTheme.label}
+            </p>
+            {todayPlan.length > 1 && (
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
+                + {todayPlan.slice(1).map(s => s.description || s.type).join(' · ')}
+              </p>
+            )}
+            {todayPlan[0]?.distance && (
+              <p style={{ fontSize: 14, fontWeight: 700, color: heroTheme.accent, marginTop: 6 }}>
+                {todayPlan[0].distance} km · {todayPlan[0].pace}
+              </p>
+            )}
+          </>
         )}
 
-        {/* ── Semana (dots) ── */}
-        <section style={{ background: 'var(--surface)', borderRadius: 16, padding: '16px 18px', marginBottom: 20, border: '1px solid var(--border)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-            <Flame size={15} style={{ color: 'var(--heh-green)' }} fill="var(--heh-green)" />
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Esta semana</span>
-            <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: 'var(--text-muted)' }}>{weekPoints}/{MAX_POINTS} pts</span>
+        {/* Points pill */}
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          marginTop: 16, padding: '6px 16px', borderRadius: 20,
+          background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)',
+        }}>
+          <Flame size={13} style={{ color: 'var(--heh-green)' }} />
+          <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>{weekPoints}</span>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>pts esta semana</span>
+          {myRank > 0 && (
+            <>
+              <span style={{ color: 'var(--border)', fontSize: 10 }}>·</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: myRank === 1 ? '#FFD60A' : 'var(--text-muted)' }}>#{myRank}</span>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 520, margin: '0 auto', padding: '0 16px' }}>
+
+        {/* ── Register workout section ── */}
+        {!todayEntry ? (
+          <div className="dash-section" style={{ marginTop: 24 }}>
+            {/* Workout type grid */}
+            <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 12 }}>
+              REGISTAR TREINO
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+              {WORKOUT_TYPES.map(({ type, label, emoji, grad, accent, points }) => (
+                <button
+                  key={type}
+                  className="workout-tile"
+                  onClick={() => markTodayDone(type)}
+                  disabled={marking}
+                  style={{
+                    background: grad,
+                    border: `1px solid ${accent}33`,
+                    borderRadius: 14,
+                    padding: '16px 14px',
+                    textAlign: 'left',
+                    opacity: marking && markType !== type ? 0.5 : 1,
+                    transition: 'opacity 0.15s',
+                  }}
+                >
+                  <div style={{ fontSize: 24, marginBottom: 8 }}>{emoji}</div>
+                  <p style={{ fontSize: 14, fontWeight: 800, color: '#fff', marginBottom: 2, letterSpacing: '-0.01em' }}>{label}</p>
+                  <p style={{ fontSize: 11, color: accent, fontWeight: 700 }}>+{points} pts</p>
+                </button>
+              ))}
+            </div>
+
+            {/* Screenshot upload */}
+            <div style={{ background: 'var(--surface)', borderRadius: 14, border: '1px solid var(--border)', overflow: 'hidden' }}>
+              <button
+                onClick={() => setShowUpload(v => !v)}
+                style={{ width: '100%', padding: '14px 18px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text)' }}
+              >
+                <span style={{ fontSize: 20 }}>📷</span>
+                <div style={{ flex: 1, textAlign: 'left' }}>
+                  <p style={{ fontSize: 14, fontWeight: 700 }}>Confirmar com screenshot</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Garmin · Apple Watch · Polar</p>
+                </div>
+                <span style={{ fontSize: 18, color: 'var(--text-muted)' }}>{showUpload ? '−' : '+'}</span>
+              </button>
+              {showUpload && (
+                <div style={{ padding: '0 18px 18px' }}>
+                  <WorkoutUpload athlete={athlete} date={today} onComplete={() => { loadAthleteData(); setShowUpload(false) }} />
+                </div>
+              )}
+            </div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            {weekDates.map((date, i) => {
-              const ds     = toYMD(date)
-              const entry  = completedMap.get(ds)
-              const done   = !!entry
-              const strava = entry?.confirmed_by_strava
-              const isToday = ds === today
+        ) : (
+          /* Already done — quick actions */
+          <div className="dash-section" style={{ marginTop: 20 }}>
+            <div style={{ background: 'var(--surface)', borderRadius: 14, padding: '14px 18px', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Quer registar mais um treino?</span>
+              <button onClick={() => { setCompletions([]); /* allow re-register */ }}
+                style={{ fontSize: 12, fontWeight: 700, color: 'var(--heh-green)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                + Adicionar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Plano de amanhã ── */}
+        <div className="dash-section" style={{ marginTop: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>PLANO</p>
+            <Link to="/plano" style={{ fontSize: 12, fontWeight: 700, color: 'var(--heh-green)', textDecoration: 'none' }}>Ver semana →</Link>
+          </div>
+          <div style={{ background: 'var(--surface)', borderRadius: 14, border: '1px solid var(--border)', overflow: 'hidden' }}>
+            {weekDates.slice(1, 4).map((date, i) => {
+              const dow = DAYS_PT[date.getDay()]
               return (
-                <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)' }}>{DAYS_SHORT[i]}</span>
-                  <div style={{ width: 34, height: 34, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, background: done ? (strava ? '#FC4C02' : 'var(--heh-green)') : isToday ? 'rgba(184,255,0,0.12)' : 'var(--dark)', border: isToday && !done ? '2px solid var(--heh-green)' : '2px solid transparent', color: done ? (strava ? 'white' : '#080808') : 'var(--text-muted)' }}>
-                    {done ? (strava ? <StravaIcon size={13} /> : '✓') : date.getDate()}
+                <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', borderBottom: i < 2 ? '1px solid var(--border)' : 'none', gap: 12 }}>
+                  <div style={{ textAlign: 'center', width: 36 }}>
+                    <p style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{DAYS_SHORT[(weekDates.indexOf(date))]}</p>
+                    <p style={{ fontSize: 16, fontWeight: 900, color: 'var(--text)' }}>{date.getDate()}</p>
                   </div>
+                  <div style={{ width: 2, height: 32, borderRadius: 2, background: 'var(--border)', flexShrink: 0 }} />
+                  <p style={{ flex: 1, fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>—</p>
+                  <ChevronRight size={14} style={{ color: 'var(--border)' }} />
                 </div>
               )
             })}
           </div>
-          <div style={{ marginTop: 12, height: 4, borderRadius: 4, background: 'var(--dark)', overflow: 'hidden' }}>
-            <div style={{ height: '100%', borderRadius: 4, width: `${Math.min((weekPoints/MAX_POINTS)*100,100)}%`, background: weekPoints >= MAX_POINTS ? '#30D158' : 'var(--heh-green)', transition: 'width 0.6s' }} />
-          </div>
-        </section>
+        </div>
 
         {/* ── Strava ── */}
-        <section style={{ background: 'var(--surface)', borderRadius: 16, padding: '16px 18px', marginBottom: 20, border: '1px solid var(--border)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="dash-section" style={{ marginTop: 20 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 14, padding: '14px 18px', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ color: '#FC4C02' }}><StravaIcon size={18} /></span>
-              <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>Strava</span>
-              {stravaLinked && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: 'rgba(48,209,88,0.15)', color: '#30D158' }}>Ligado</span>}
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Strava</p>
+                {stravaLinked
+                  ? <p style={{ fontSize: 11, color: '#30D158', fontWeight: 600 }}>Ligado ✓</p>
+                  : <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>+20 pts por atividade</p>
+                }
+              </div>
             </div>
             {stravaLinked ? (
               <button onClick={syncStrava} disabled={syncing}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '8px 14px', borderRadius: 10, background: 'rgba(252,76,2,0.12)', color: '#FC4C02', border: 'none', cursor: 'pointer', opacity: syncing ? 0.6 : 1 }}>
+                style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '8px 14px', borderRadius: 10, background: 'rgba(252,76,2,0.12)', color: '#FC4C02', border: '1px solid rgba(252,76,2,0.2)', cursor: 'pointer', opacity: syncing ? 0.6 : 1 }}>
                 <RefreshCw size={12} style={{ animation: syncing ? 'spin 0.8s linear infinite' : 'none' }} />
                 {syncing ? 'A sincronizar...' : 'Sincronizar'}
               </button>
             ) : (
-              <a href={STRAVA_AUTH_URL} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '8px 14px', borderRadius: 10, background: '#FC4C02', color: 'white', textDecoration: 'none' }}>
+              <a href={STRAVA_AUTH_URL}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '8px 14px', borderRadius: 10, background: '#FC4C02', color: 'white', textDecoration: 'none' }}>
                 <StravaIcon size={12} /> Ligar
               </a>
             )}
           </div>
-          {syncMsg && <p style={{ fontSize: 12, fontWeight: 600, marginTop: 8, color: syncMsg.startsWith('Erro') ? '#FF453A' : '#30D158' }}>{syncMsg}</p>}
-          {!stravaLinked && <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.5 }}>Liga o Strava para confirmar treinos automaticamente (+20 pts).</p>}
-        </section>
+          {syncMsg && <p style={{ fontSize: 12, fontWeight: 600, marginTop: 8, paddingLeft: 4, color: syncMsg.startsWith('Erro') ? '#FF453A' : '#30D158' }}>{syncMsg}</p>}
+        </div>
 
         {/* ── Ranking ── */}
         {ranking.length > 1 && (
-          <section style={{ background: 'var(--surface)', borderRadius: 16, padding: '16px 18px', marginBottom: 20, border: '1px solid var(--border)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-              <Trophy size={15} style={{ color: 'var(--heh-green)' }} />
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Ranking Grupo {athlete?.group}</span>
-              <Link to="/resultados" style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: 'var(--heh-green)', textDecoration: 'none' }}>Ver tudo ›</Link>
+          <div className="dash-section" style={{ marginTop: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>RANKING {athlete?.group}</p>
+              <Link to="/resultados" style={{ fontSize: 12, fontWeight: 700, color: 'var(--heh-green)', textDecoration: 'none' }}>Ver tudo →</Link>
             </div>
-            {ranking.slice(0, 3).map((a, i) => (
-              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: i < 2 ? '1px solid var(--border)' : 'none' }}>
-                <span style={{ fontWeight: 900, fontSize: 16, width: 24, color: i === 0 ? '#FFD60A' : i === 1 ? '#C0C0C0' : '#CD7F32' }}>{i+1}</span>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, color: a.isMe ? 'var(--heh-green)' : 'var(--text-muted)' }}>
-                  {a.name.slice(0,2).toUpperCase()}
+            <div style={{ background: 'var(--surface)', borderRadius: 14, border: '1px solid var(--border)', overflow: 'hidden' }}>
+              {ranking.slice(0, 5).map((a, i) => (
+                <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: i < Math.min(ranking.length, 5) - 1 ? '1px solid var(--border)' : 'none' }}>
+                  <span style={{ fontWeight: 900, fontSize: 15, width: 22, textAlign: 'center', color: i === 0 ? '#FFD60A' : i === 1 ? '#C0C0C0' : i === 2 ? '#CD7F32' : 'var(--text-muted)' }}>
+                    {i + 1}
+                  </span>
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: a.isMe ? 'rgba(184,255,0,0.15)' : 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, color: a.isMe ? 'var(--heh-green)' : 'var(--text-muted)', border: a.isMe ? '1px solid rgba(184,255,0,0.3)' : 'none' }}>
+                    {a.name.slice(0, 2).toUpperCase()}
+                  </div>
+                  <span style={{ flex: 1, fontSize: 14, fontWeight: a.isMe ? 800 : 500, color: a.isMe ? 'var(--heh-green)' : 'var(--text)' }}>
+                    {a.name.split(' ')[0]}{a.isMe ? ' (tu)' : ''}
+                  </span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)' }}>
+                    {a.points} <span style={{ fontSize: 10 }}>pts</span>
+                  </span>
                 </div>
-                <span style={{ flex: 1, fontSize: 14, fontWeight: a.isMe ? 800 : 500, color: a.isMe ? 'var(--heh-green)' : 'var(--text)' }}>
-                  {a.name}{a.isMe ? ' (tu)' : ''}
-                </span>
-                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)' }}>{a.points} <span style={{ fontSize: 10 }}>pts</span></span>
-              </div>
-            ))}
-          </section>
+              ))}
+            </div>
+          </div>
         )}
 
         {/* Sair */}
         <button onClick={async () => { await signOut(); navigate('/login') }}
-          style={{ width: '100%', padding: '13px', borderRadius: 14, fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', background: 'var(--surface)', border: '1px solid var(--border)', cursor: 'pointer', marginBottom: 8 }}>
+          style={{ width: '100%', marginTop: 24, padding: '13px', borderRadius: 14, fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', background: 'var(--surface)', border: '1px solid var(--border)', cursor: 'pointer' }}>
           Sair
         </button>
       </div>
