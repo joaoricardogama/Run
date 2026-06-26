@@ -12,8 +12,10 @@ const STRAVA_CLIENT_ID = '261127'
 const STRAVA_REDIRECT  = 'https://run-blush.vercel.app/strava/callback'
 const STRAVA_AUTH_URL  = `https://www.strava.com/oauth/authorize?client_id=${STRAVA_CLIENT_ID}&redirect_uri=${encodeURIComponent(STRAVA_REDIRECT)}&response_type=code&scope=activity:read_all&approval_prompt=auto`
 
-const DAYS_SHORT = ['SEG','TER','QUA','QUI','SEX','SÁB','DOM']
-const DAYS_PT    = ['domingo','segunda','terça','quarta','quinta','sexta','sábado']
+const DAYS_SHORT  = ['SEG','TER','QUA','QUI','SEX','SÁB','DOM']
+const DAYS_PT     = ['domingo','segunda','terça','quarta','quinta','sexta','sábado']
+const DAYS_FULL   = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado']
+const MONTHS_PT   = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
 
 function getWeekDates() {
   const today = new Date()
@@ -234,13 +236,19 @@ export default function Dashboard() {
     setWeekCompletions(myComp || [])
     setAllCompletions(allComp || [])
 
-    // Plan
-    const { data: plan } = await supabase
-      .from('general_plans').select('content').gte('week_start', weekStart).lte('week_start', weekEnd)
-      .order('week_start', { ascending: false }).limit(1).maybeSingle()
-    if (plan?.content && athlete.group) {
-      const groupPlan = plan.content[athlete.group] || {}
-      setTodayPlan(groupPlan[todayDow] || [])
+    // Plan — verifica plano individual primeiro, depois grupo
+    const [{ data: indPlan }, { data: genPlan }] = await Promise.all([
+      supabase.from('athlete_weekly_plans').select('content')
+        .eq('athlete_id', athlete.id).eq('week_start', weekStart)
+        .maybeSingle(),
+      supabase.from('general_plans').select('content')
+        .gte('week_start', weekStart).lte('week_start', weekEnd)
+        .order('week_start', { ascending: false }).limit(1).maybeSingle(),
+    ])
+    if (indPlan?.content) {
+      setTodayPlan(indPlan.content[todayDow] || [])
+    } else if (genPlan?.content && athlete.group) {
+      setTodayPlan(genPlan.content[athlete.group]?.[todayDow] || [])
     }
 
     // Ranking
@@ -420,14 +428,20 @@ export default function Dashboard() {
       </div>
 
       {/* ── Hero card ── */}
-      <div style={{ background: todayEntry ? 'linear-gradient(180deg,#0d2e1a 0%,#080808 100%)' : heroTheme.grad, padding: '36px 20px 32px', textAlign: 'center' }}>
-        <div style={{ fontSize: 52, marginBottom: 10, lineHeight: 1 }}>
+      <div style={{ background: todayEntry ? 'linear-gradient(180deg,#0d2e1a 0%,#080808 100%)' : heroTheme.grad, padding: '28px 20px 28px', textAlign: 'center' }}>
+
+        {/* Data de hoje — sempre visível */}
+        <p style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.4)', marginBottom: 16, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          {DAYS_FULL[new Date().getDay()]} · {new Date().getDate()} {MONTHS_PT[new Date().getMonth()]}
+        </p>
+
+        <div style={{ fontSize: 48, marginBottom: 10, lineHeight: 1 }}>
           {todayEntry ? (todayEntry.source === 'screenshot' ? '📷' : todayEntry.confirmed_by_strava ? '🟠' : '✅') : heroTheme.icon}
         </div>
 
         {todayEntry ? (
           <>
-            <p style={{ fontSize: 21, fontWeight: 900, letterSpacing: '-0.03em', color: 'var(--text)', marginBottom: 4 }}>Treino concluído!</p>
+            <p style={{ fontSize: 20, fontWeight: 900, letterSpacing: '-0.03em', color: 'var(--text)', marginBottom: 4 }}>Treino concluído!</p>
             <p style={{ fontSize: 13, color: '#30D158', fontWeight: 700 }}>+{todayEntry.points} pts · {todayEntry.session_label}</p>
             {todayEntry.distance_km && (
               <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 8 }}>
@@ -439,14 +453,26 @@ export default function Dashboard() {
           </>
         ) : isRestDay ? (
           <>
-            <p style={{ fontSize: 21, fontWeight: 900, letterSpacing: '-0.03em', color: 'var(--text)', marginBottom: 4 }}>Descansa, {(athlete?.name || '').split(' ')[0]}</p>
+            <p style={{ fontSize: 20, fontWeight: 900, letterSpacing: '-0.03em', color: 'var(--text)', marginBottom: 4 }}>Descansa, {(athlete?.name || '').split(' ')[0]}</p>
             <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>A recuperação alimenta o próximo treino.</p>
           </>
         ) : (
           <>
-            <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', color: heroTheme.accent, marginBottom: 6, textTransform: 'uppercase' }}>TREINO DE HOJE</p>
-            <p style={{ fontSize: 21, fontWeight: 900, letterSpacing: '-0.03em', color: 'var(--text)', marginBottom: 4, lineHeight: 1.2 }}>{todayPlan[0]?.description || heroTheme.label}</p>
-            {todayPlan[0]?.distance && <p style={{ fontSize: 14, fontWeight: 700, color: heroTheme.accent }}>{todayPlan[0].distance} km · {todayPlan[0].pace}</p>}
+            <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', color: heroTheme.accent, marginBottom: 8, textTransform: 'uppercase' }}>TREINO DE HOJE</p>
+            {/* Mostra todas as sessões do dia */}
+            {todayPlan.map((s, i) => (
+              <div key={i} style={{ marginBottom: i < todayPlan.length - 1 ? 10 : 0 }}>
+                <p style={{ fontSize: 19, fontWeight: 900, letterSpacing: '-0.03em', color: 'var(--text)', lineHeight: 1.2, marginBottom: 3 }}>
+                  {s.description || s.type}
+                </p>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  {s.distance && <span style={{ fontSize: 13, fontWeight: 700, color: heroTheme.accent }}>{s.distance} km</span>}
+                  {s.pace && <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', fontFamily: 'monospace' }}>{s.pace}</span>}
+                  {s.type && <span style={{ fontSize: 11, fontWeight: 800, color: heroTheme.accent, background: heroTheme.accent + '18', padding: '2px 8px', borderRadius: 6 }}>{s.type}</span>}
+                </div>
+                {s.notes && <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 4, fontStyle: 'italic' }}>{s.notes}</p>}
+              </div>
+            ))}
           </>
         )}
 
