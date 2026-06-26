@@ -307,7 +307,7 @@ export default function Dashboard() {
             {stravaLinked ? (
               <button onClick={syncStrava} disabled={syncing}
                 className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl transition-all"
-                style={{ background: 'rgba(252,76,2,0.15)', color: 'var(--orange)', opacity: syncing ? 0.6 : 1 }}>
+                style={{ background: 'rgba(252,76,2,0.15)', color: '#FC4C02', opacity: syncing ? 0.6 : 1 }}>
                 <RefreshCw size={13} className={syncing ? 'animate-spin' : ''} />
                 {syncing ? 'A sincronizar...' : 'Sincronizar'}
               </button>
