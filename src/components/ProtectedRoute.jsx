@@ -13,6 +13,6 @@ export function RequireCoach({ children }) {
   const { user, isCoach, loading } = useAuth()
   if (loading) return <LoadingSpinner />
   if (!user) return <Navigate to="/login" replace />
-  if (!isCoach) return <Navigate to="/" replace />
+  if (!isCoach) return <Navigate to="/dashboard" replace />
   return children
 }

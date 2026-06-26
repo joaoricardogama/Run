@@ -6,10 +6,10 @@ import Header from './components/Header'
 import BottomNav from './components/BottomNav'
 import LoadingSpinner from './components/LoadingSpinner'
 
-import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
 
+const Dashboard     = lazy(() => import('./pages/Dashboard'))
 const MyPlan        = lazy(() => import('./pages/athlete/MyPlan'))
 const MyRaces       = lazy(() => import('./pages/athlete/MyRaces'))
 const MyResults     = lazy(() => import('./pages/athlete/MyResults'))
@@ -20,16 +20,6 @@ const GeneralPlan   = lazy(() => import('./pages/coach/GeneralPlan'))
 const Races         = lazy(() => import('./pages/coach/Races'))
 const ResultsOverview = lazy(() => import('./pages/coach/ResultsOverview'))
 const CoachCalendar   = lazy(() => import('./pages/coach/CoachCalendar'))
-
-function PublicShell({ children }) {
-  return (
-    <div className="flex flex-col min-h-screen">
-      <Header />
-      <main className="flex-1">{children}</main>
-      <BottomNav />
-    </div>
-  )
-}
 
 function AthleteShell({ children }) {
   return (
@@ -51,16 +41,27 @@ export default function App() {
       <AuthProvider>
         <Suspense fallback={<LoadingSpinner />}>
           <Routes>
-            <Route path="/login"    element={<Login />} />
+            {/* Página inicial = login */}
+            <Route path="/"        element={<Login />} />
+            <Route path="/login"   element={<Login />} />
             <Route path="/registo" element={<Register />} />
 
-            <Route path="/" element={<PublicShell><Home /></PublicShell>} />
+            {/* Dashboard pós-login (atleta e coach) */}
+            <Route path="/dashboard" element={
+              <RequireAuth>
+                <Suspense fallback={<LoadingSpinner />}>
+                  <Dashboard />
+                </Suspense>
+              </RequireAuth>
+            } />
 
+            {/* Páginas do atleta */}
             <Route path="/plano"      element={<AthleteShell><MyPlan /></AthleteShell>} />
             <Route path="/corridas"   element={<AthleteShell><MyRaces /></AthleteShell>} />
             <Route path="/resultados" element={<AthleteShell><MyResults /></AthleteShell>} />
             <Route path="/perfil"     element={<AthleteShell><MyProfile /></AthleteShell>} />
 
+            {/* Área do coach */}
             <Route path="/coach" element={
               <RequireCoach>
                 <Suspense fallback={<LoadingSpinner />}>

@@ -20,8 +20,7 @@ export default function Login() {
     if (err) {
       setError('Email ou palavra-passe incorretos.')
     } else {
-      const coachEmail = import.meta.env.VITE_COACH_EMAIL || 'coach@runtejo.pt'
-      navigate(email === coachEmail ? '/coach' : '/plano')
+      navigate('/dashboard')
     }
   }
 
@@ -109,9 +108,6 @@ export default function Login() {
             Ainda não tens conta?{' '}
             <Link to="/registo" style={{ color: 'var(--orange)', fontWeight: 700 }}>Criar conta</Link>
           </p>
-          <Link to="/" className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>
-            ← Ver plano público
-          </Link>
         </div>
       </div>
     </div>
