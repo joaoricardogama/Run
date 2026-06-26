@@ -19,6 +19,7 @@ const Athletes      = lazy(() => import('./pages/coach/Athletes'))
 const GeneralPlan   = lazy(() => import('./pages/coach/GeneralPlan'))
 const Races         = lazy(() => import('./pages/coach/Races'))
 const ResultsOverview = lazy(() => import('./pages/coach/ResultsOverview'))
+const CoachCalendar   = lazy(() => import('./pages/coach/CoachCalendar'))
 
 function PublicShell({ children }) {
   return (
@@ -72,6 +73,7 @@ export default function App() {
               <Route path="plano"      element={<GeneralPlan />} />
               <Route path="corridas"   element={<Races />} />
               <Route path="resultados" element={<ResultsOverview />} />
+              <Route path="calendario" element={<CoachCalendar />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />

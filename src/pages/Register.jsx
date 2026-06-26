@@ -181,6 +181,8 @@ p_specializations: form.specializations,
 p_pr_10km: pr10 || null,
 p_pr_5km: pr5 || null,
 p_coach_id: form.coach_id || null,
+p_gdpr_consent: form.gdpr_consent,
+})
 p_gdpr_consent: form.gdpr_consent,  // FIX: campo em falta que causava falha no registo
 })
 if (insErr) {
