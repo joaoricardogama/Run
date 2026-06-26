@@ -5,6 +5,16 @@ import { parseTime } from '../utils/pace'
 import { assignGroup, MODALITIES, SPECIALIZATIONS } from '../utils/groupAssignment'
 import { AlertCircle, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react'
 
+const STRAVA_REGISTER_URL = `https://www.strava.com/oauth/authorize?client_id=261127&redirect_uri=${encodeURIComponent('https://run-blush.vercel.app/strava/register-callback')}&response_type=code&scope=read,activity:read_all&approval_prompt=auto`
+
+function StravaIcon({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" />
+    </svg>
+  )
+}
+
 const inputStyle = {
 background: 'var(--surface2)',
 border: '1px solid var(--border)',
@@ -102,6 +112,7 @@ const [step, setStep] = useState(0)
 const [coaches, setCoaches] = useState([])
 const [loading, setLoading] = useState(false)
 const [error, setError] = useState('')
+const [stravaPrefill, setStravaPrefill] = useState(null)
 
 // Form state
 const [form, setForm] = useState({
@@ -119,6 +130,20 @@ useEffect(() => {
 supabase.from('coaches').select('id, name, email').order('name').then(({ data }) => {
 if (data) setCoaches(data)
 })
+// Pré-preencher com dados do Strava se vieram do OAuth
+const raw = sessionStorage.getItem('strava_prefill')
+if (raw) {
+  try {
+    const prefill = JSON.parse(raw)
+    setStravaPrefill(prefill)
+    setForm(p => ({
+      ...p,
+      name:     prefill.name     || p.name,
+      sex:      prefill.sex      || p.sex,
+      location: prefill.location || p.location,
+    }))
+  } catch { /* ignorar JSON inválido */ }
+}
 }, [])
 
 const pr10Seconds = parseTime(form.pr_10km)
@@ -189,7 +214,19 @@ setLoading(false)
 return
 }
 
-navigate('/plano')
+// Guardar tokens Strava se o registo veio do OAuth
+if (stravaPrefill?.access_token) {
+  await supabase.from('athletes').update({
+    avatar_url:              stravaPrefill.avatar_url,
+    strava_athlete_id:       stravaPrefill.strava_athlete_id,
+    strava_access_token:     stravaPrefill.access_token,
+    strava_refresh_token:    stravaPrefill.refresh_token,
+    strava_token_expires_at: stravaPrefill.expires_at,
+  }).eq('email', form.email)
+  sessionStorage.removeItem('strava_prefill')
+}
+
+navigate('/dashboard')
 }
 
 const canNext = [
@@ -216,6 +253,41 @@ Criar conta <span style={{ color: 'var(--orange)' }}>RunTejo</span>
 </h1>
 <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>v4</p>
 </div>
+
+{/* Botão Registar com Strava (só se ainda não veio do Strava) */}
+{!stravaPrefill && (
+  <div className="mb-6">
+    <a href={STRAVA_REGISTER_URL}
+      className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl font-bold text-sm"
+      style={{ background: '#FC4C02', color: 'white' }}>
+      <StravaIcon size={18} />
+      Registar com Strava
+    </a>
+    <div className="flex items-center gap-3 my-4">
+      <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+      <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>ou preenche manualmente</span>
+      <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+    </div>
+  </div>
+)}
+
+{/* Badge Strava se pré-preenchido */}
+{stravaPrefill && (
+  <div className="flex items-center gap-3 mb-6 p-3 rounded-2xl"
+    style={{ background: 'rgba(252,76,2,0.10)', border: '1px solid rgba(252,76,2,0.25)' }}>
+    {stravaPrefill.avatar_url && (
+      <img src={stravaPrefill.avatar_url} alt="Strava" className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
+    )}
+    <div className="flex-1 min-w-0">
+      <div className="flex items-center gap-1.5 mb-0.5">
+        <span style={{ color: '#FC4C02' }}><StravaIcon size={13} /></span>
+        <span className="text-xs font-bold" style={{ color: '#FC4C02' }}>Ligado ao Strava</span>
+      </div>
+      <p className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{stravaPrefill.name}</p>
+      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Dados pré-preenchidos — revê e confirma</p>
+    </div>
+  </div>
+)}
 
 {/* Step indicator */}
 <div className="flex items-center gap-2 mb-8">

@@ -10,7 +10,8 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 
 const Dashboard       = lazy(() => import('./pages/Dashboard'))
-const StravaCallback  = lazy(() => import('./pages/StravaCallback'))
+const StravaCallback         = lazy(() => import('./pages/StravaCallback'))
+const StravaRegisterCallback = lazy(() => import('./pages/StravaRegisterCallback'))
 const MyPlan        = lazy(() => import('./pages/athlete/MyPlan'))
 const MyRaces       = lazy(() => import('./pages/athlete/MyRaces'))
 const MyResults     = lazy(() => import('./pages/athlete/MyResults'))
@@ -63,6 +64,13 @@ export default function App() {
                   <StravaCallback />
                 </Suspense>
               </RequireAuth>
+            } />
+
+            {/* Strava registo callback (sem RequireAuth — utilizador ainda não tem conta) */}
+            <Route path="/strava/register-callback" element={
+              <Suspense fallback={<LoadingSpinner />}>
+                <StravaRegisterCallback />
+              </Suspense>
             } />
 
             {/* Páginas do atleta */}
