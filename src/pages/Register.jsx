@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { assignGroup } from '../utils/groupAssignment'
+import { getEscalao, escalaoColor } from '../utils/escalao'
 import { AlertCircle, ChevronLeft, Check } from 'lucide-react'
 
 const STRAVA_REGISTER_URL = `https://www.strava.com/oauth/authorize?client_id=261127&redirect_uri=${encodeURIComponent('https://run-blush.vercel.app/strava/register-callback')}&response_type=code&scope=read,activity:read_all&approval_prompt=auto`
@@ -249,6 +250,12 @@ export default function Register() {
 
       if (insErr) { setError('Erro ao criar perfil: ' + (insErr.message || insErr.code)); setLoading(false); return }
 
+      // Guardar escalão FPA
+      const escalao = getEscalao(form.date_of_birth, form.sex)
+      if (escalao) {
+        await supabase.from('athletes').update({ escalao }).eq('email', form.email)
+      }
+
       if (stravaPrefill?.access_token) {
         await supabase.from('athletes').update({
           avatar_url: stravaPrefill.avatar_url,
@@ -341,6 +348,17 @@ export default function Register() {
               <div>
                 <label style={labelStyle}>Data de nascimento</label>
                 <input type="date" style={inputStyle} value={form.date_of_birth} onChange={e => set('date_of_birth', e.target.value)} />
+                {/* Preview de escalão em tempo real */}
+                {form.date_of_birth && form.sex && (() => {
+                  const esc = getEscalao(form.date_of_birth, form.sex)
+                  const clr = escalaoColor(esc)
+                  return esc ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, padding: '8px 12px', borderRadius: 10, background: clr + '18', border: `1px solid ${clr}44` }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: clr }}>{esc}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>· escalão FPA atribuído automaticamente</span>
+                    </div>
+                  ) : null
+                })()}
               </div>
 
               <div>
