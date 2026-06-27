@@ -7,6 +7,7 @@ import LoadingSpinner from '../components/LoadingSpinner'
 import BottomNav from '../components/BottomNav'
 import WorkoutUpload from '../components/WorkoutUpload'
 import OnboardingModal from '../components/OnboardingModal'
+import ActivityFeed from '../components/ActivityFeed'
 
 const STRAVA_CLIENT_ID = '261127'
 const STRAVA_REDIRECT  = 'https://run-blush.vercel.app/strava/callback'
@@ -319,23 +320,51 @@ export default function Dashboard() {
     setSyncing(true); setSyncMsg('A sincronizar...')
     try {
       const token = await getValidToken()
-      const after = Math.floor(weekDates[0].getTime() / 1000)
+      // últimos 14 dias para apanhar atividades recentes
+      const after = Math.floor((Date.now() - 14 * 24 * 60 * 60 * 1000) / 1000)
       const res = await fetch(`https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=30`, { headers: { Authorization: `Bearer ${token}` } })
       const activities = await res.json()
       if (!Array.isArray(activities)) throw new Error('Resposta inválida do Strava')
-      const weekStrs = weekDates.map(toYMD)
-      const runs = activities.filter(a => a.type === 'Run' || a.sport_type === 'Run')
+      const runs = activities.filter(a => ['Run','TrailRun','Walk'].includes(a.type) || ['Run','TrailRun','Walk'].includes(a.sport_type))
       let confirmed = 0
       for (const act of runs) {
         const actDate = act.start_date_local?.split('T')[0]
-        if (!actDate || !weekStrs.includes(actDate)) continue
-        const { data: existing } = await supabase.from('training_completions').select('confirmed_by_strava').eq('athlete_id', athlete.id).eq('date', actDate).eq('session_label', 'Treino').maybeSingle()
-        if (existing?.confirmed_by_strava) continue
-        await supabase.from('training_completions').upsert({ athlete_id: athlete.id, date: actDate, session_label: 'Treino', points: 20, confirmed_by_strava: true, strava_activity_id: act.id }, { onConflict: 'athlete_id,date,session_label' })
-        confirmed++
+        if (!actDate) continue
+        // converter pace: speed m/s → segundos por km
+        const paceSecPerKm = act.average_speed > 0 ? Math.round(1000 / act.average_speed) : null
+        const payload = {
+          athlete_id: athlete.id,
+          date: actDate,
+          session_label: act.name || 'Treino',
+          points: 20,
+          confirmed_by_strava: true,
+          strava_activity_id: act.id,
+          strava_name: act.name || null,
+          strava_type: act.sport_type || act.type || null,
+          distance_km: act.distance ? Math.round(act.distance / 10) / 100 : null,
+          duration_s: act.moving_time || null,
+          elevation_m: act.total_elevation_gain ? Math.round(act.total_elevation_gain) : null,
+          pace_avg: paceSecPerKm,
+          hr_avg: act.average_heartrate ? Math.round(act.average_heartrate) : null,
+        }
+        const { data: existing } = await supabase.from('training_completions')
+          .select('id,confirmed_by_strava').eq('athlete_id', athlete.id)
+          .eq('date', actDate).eq('strava_activity_id', act.id).maybeSingle()
+        if (existing) {
+          // atualiza dados se já existir
+          await supabase.from('training_completions').update(payload).eq('id', existing.id)
+        } else {
+          await supabase.from('training_completions').upsert(
+            { ...payload, session_label: act.name || 'Treino' },
+            { onConflict: 'athlete_id,date,session_label' }
+          )
+          confirmed++
+        }
       }
       await loadAthleteData()
-      setSyncMsg(confirmed > 0 ? `${confirmed} treino${confirmed > 1 ? 's' : ''} confirmado${confirmed > 1 ? 's' : ''}! +${confirmed * 20} pts` : runs.length > 0 ? 'Treinos já sincronizados' : 'Sem corridas esta semana no Strava')
+      setSyncMsg(confirmed > 0
+        ? `${confirmed} treino${confirmed > 1 ? 's' : ''} sincronizado${confirmed > 1 ? 's' : ''}! +${confirmed * 20} pts`
+        : runs.length > 0 ? 'Atividades já sincronizadas' : 'Sem corridas recentes no Strava')
     } catch (e) { setSyncMsg('Erro: ' + e.message) }
     setSyncing(false)
     setTimeout(() => setSyncMsg(''), 5000)
@@ -638,6 +667,9 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* ── Feed de Atividades ── */}
+        <ActivityFeed athlete={athlete} />
+
         {/* ── Ranking ── */}
         {ranking.length > 1 && (
           <div className="dash-section" style={{ marginTop: 16 }}>
@@ -649,26 +681,4 @@ export default function Dashboard() {
               {ranking.slice(0, 5).map((a, i) => (
                 <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: i < Math.min(ranking.length, 5) - 1 ? '1px solid var(--border)' : 'none' }}>
                   <span style={{ fontWeight: 900, fontSize: 15, width: 22, textAlign: 'center', color: i === 0 ? '#FFD60A' : i === 1 ? '#C0C0C0' : i === 2 ? '#CD7F32' : 'var(--text-muted)' }}>{i + 1}</span>
-                  <div style={{ width: 32, height: 32, borderRadius: 8, background: a.isMe ? 'rgba(184,255,0,0.15)' : 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, color: a.isMe ? 'var(--heh-green)' : 'var(--text-muted)', border: a.isMe ? '1px solid rgba(184,255,0,0.3)' : 'none' }}>
-                    {a.name.slice(0, 2).toUpperCase()}
-                  </div>
-                  <span style={{ flex: 1, fontSize: 14, fontWeight: a.isMe ? 800 : 500, color: a.isMe ? 'var(--heh-green)' : 'var(--text)' }}>
-                    {a.name.split(' ')[0]}{a.isMe ? ' (tu)' : ''}
-                  </span>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)' }}>{a.points} <span style={{ fontSize: 10 }}>pts</span></span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <button onClick={async () => { await signOut(); navigate('/login') }}
-          style={{ width: '100%', marginTop: 20, padding: '13px', borderRadius: 14, fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', background: 'var(--surface)', border: '1px solid var(--border)', cursor: 'pointer' }}>
-          Sair
-        </button>
-      </div>
-
-      <BottomNav />
-    </div>
-  )
-}
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: a.isMe ? 'rgba(184,255,0,0.15)' : 'var(--surfa

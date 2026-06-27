@@ -5,7 +5,7 @@ import { assignGroup } from '../../utils/groupAssignment'
 import { getEscalao, escalaoColor, formatTime, DISTANCES, MEDAL_COLORS, getMedalFromPosition } from '../../utils/escalao'
 import SessionCard from '../../components/SessionCard'
 import LoadingSpinner from '../../components/LoadingSpinner'
-import { Plus, X, ChevronLeft, Edit2, Calendar, ClipboardList, User, Trash2, Shield, Medal } from 'lucide-react'
+import { Plus, X, ChevronLeft, Edit2, Calendar, ClipboardList, User, Trash2, Shield, Medal, Activity, Send, MessageCircle } from 'lucide-react'
 
 const GROUPS = {
   G1: '#FF6B35', G2: '#F7C59F', G3: '#c8c89e',
@@ -797,6 +797,189 @@ function RacesTab({ athlete }) {
   )
 }
 
+// ─── Tab Atividades (coach) ────────────────────────────────────
+function fmtPaceCoach(secPerKm) {
+  if (!secPerKm) return null
+  return `${Math.floor(secPerKm / 60)}:${String(secPerKm % 60).padStart(2, '0')}/km`
+}
+function fmtDurCoach(s) {
+  if (!s) return null
+  const m = Math.floor(s / 60)
+  if (m >= 60) return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}m`
+  return `${m}m ${String(s % 60).padStart(2, '0')}s`
+}
+function fmtDateCoach(dateStr) {
+  if (!dateStr) return ''
+  const d = new Date(dateStr + 'T00:00')
+  const diff = Math.floor((Date.now() - d) / 86400000)
+  if (diff === 0) return 'Hoje'
+  if (diff === 1) return 'Ontem'
+  if (diff < 7) return d.toLocaleDateString('pt-PT', { weekday: 'long' })
+  return d.toLocaleDateString('pt-PT', { day: 'numeric', month: 'short' })
+}
+function timeAgoCoach(ts) {
+  const diff = (Date.now() - new Date(ts)) / 1000
+  if (diff < 60) return 'agora'
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`
+  return `${Math.floor(diff / 86400)}d`
+}
+
+function ActivitiesTab({ athlete, coachName, coachEmail }) {
+  const [activities, setActivities] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [openId, setOpenId] = useState(null)
+  const [comments, setComments] = useState({})
+  const [texts, setTexts] = useState({})
+  const [posting, setPosting] = useState(null)
+
+  useEffect(() => {
+    if (!athlete?.id) return
+    async function load() {
+      const since = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
+      const { data } = await supabase
+        .from('training_completions')
+        .select('*')
+        .eq('athlete_id', athlete.id)
+        .gte('date', since)
+        .order('date', { ascending: false })
+        .limit(20)
+      setActivities(data || [])
+      setLoading(false)
+    }
+    load()
+  }, [athlete?.id])
+
+  async function loadComments(actId) {
+    const { data } = await supabase.from('training_comments')
+      .select('*').eq('completion_id', actId).order('created_at')
+    setComments(c => ({ ...c, [actId]: data || [] }))
+  }
+
+  function toggleOpen(actId) {
+    if (openId === actId) { setOpenId(null); return }
+    setOpenId(actId)
+    loadComments(actId)
+  }
+
+  async function postComment(act) {
+    const t = texts[act.id]?.trim()
+    if (!t || posting) return
+    setPosting(act.id)
+    await supabase.from('training_comments').insert({
+      completion_id: act.id,
+      athlete_id: act.athlete_id,
+      author_email: coachEmail,
+      author_name: coachName || 'Treinador',
+      author_role: 'coach',
+      content: t,
+    })
+    setTexts(tx => ({ ...tx, [act.id]: '' }))
+    await loadComments(act.id)
+    setPosting(null)
+  }
+
+  if (loading) return <LoadingSpinner />
+  if (!activities.length) return (
+    <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)', fontSize: 14 }}>
+      Sem atividades nos últimos 30 dias.
+    </div>
+  )
+
+  return (
+    <div>
+      {activities.map(act => {
+        const isOpen = openId === act.id
+        const actComments = comments[act.id]
+        const hasStats = act.distance_km || act.duration_s || act.pace_avg
+
+        return (
+          <div key={act.id} style={{ background: 'var(--surface)', borderRadius: 14, border: '1px solid var(--border)', marginBottom: 10, overflow: 'hidden' }}>
+            <div style={{ padding: '12px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: hasStats ? 10 : 0 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 9, background: act.confirmed_by_strava ? 'rgba(252,76,2,0.12)' : 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: act.confirmed_by_strava ? 0 : 16 }}>
+                  {act.confirmed_by_strava
+                    ? <svg width={16} height={16} viewBox="0 0 24 24" fill="#FC4C02"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" /></svg>
+                    : '🏃'}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>{act.strava_name || act.session_label || 'Treino'}</p>
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>{fmtDateCoach(act.date)}{act.strava_type ? ` · ${act.strava_type}` : ''}</p>
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--orange)', background: 'rgba(255,107,53,0.1)', padding: '2px 8px', borderRadius: 8 }}>+{act.points}pts</span>
+              </div>
+              {hasStats && (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {act.distance_km && <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '6px 10px', textAlign: 'center', flex: 1 }}>
+                    <p style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>DIST.</p>
+                    <p style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{Number(act.distance_km).toFixed(2)} km</p>
+                  </div>}
+                  {act.pace_avg && <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '6px 10px', textAlign: 'center', flex: 1 }}>
+                    <p style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>RITMO</p>
+                    <p style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{fmtPaceCoach(act.pace_avg)}</p>
+                  </div>}
+                  {act.duration_s && <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '6px 10px', textAlign: 'center', flex: 1 }}>
+                    <p style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>TEMPO</p>
+                    <p style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{fmtDurCoach(act.duration_s)}</p>
+                  </div>}
+                  {act.elevation_m > 0 && <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '6px 10px', textAlign: 'center', flex: 1 }}>
+                    <p style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>ELEV.</p>
+                    <p style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>+{act.elevation_m}m</p>
+                  </div>}
+                </div>
+              )}
+            </div>
+
+            <button onClick={() => toggleOpen(act.id)}
+              style={{ width: '100%', padding: '8px 14px', background: 'none', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: isOpen ? '#5E5CE6' : 'var(--text-muted)', fontSize: 12, fontWeight: 600 }}>
+              <MessageCircle size={12} />
+              {isOpen ? 'Fechar' : `Comentar${actComments?.length ? ` (${actComments.length})` : ''}`}
+            </button>
+
+            {isOpen && (
+              <div style={{ padding: '10px 14px 12px' }}>
+                {!actComments ? (
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>A carregar…</p>
+                ) : (
+                  <>
+                    {actComments.map(c => (
+                      <div key={c.id} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                        <div style={{ width: 26, height: 26, borderRadius: 7, background: c.author_role === 'coach' ? 'rgba(94,92,230,0.15)' : 'rgba(255,107,53,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900, color: c.author_role === 'coach' ? '#5E5CE6' : 'var(--orange)', flexShrink: 0 }}>
+                          {c.author_name?.[0]?.toUpperCase() || '?'}
+                        </div>
+                        <div>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: c.author_role === 'coach' ? '#5E5CE6' : 'var(--orange)' }}>
+                            {c.author_role === 'coach' ? '🏅 ' : ''}{c.author_name}
+                          </span>
+                          <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 6 }}>{timeAgoCoach(c.created_at)}</span>
+                          <p style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.4, marginTop: 1 }}>{c.content}</p>
+                        </div>
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                      <input
+                        value={texts[act.id] || ''}
+                        onChange={e => setTexts(tx => ({ ...tx, [act.id]: e.target.value }))}
+                        onKeyDown={e => e.key === 'Enter' && !e.shiftKey && postComment(act)}
+                        placeholder="Dar feedback ao atleta…"
+                        style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 9, padding: '8px 11px', fontSize: 12, outline: 'none' }}
+                      />
+                      <button onClick={() => postComment(act)} disabled={!texts[act.id]?.trim() || posting === act.id}
+                        style={{ width: 34, height: 34, borderRadius: 9, background: texts[act.id]?.trim() ? '#5E5CE6' : 'var(--surface2)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Send size={13} color={texts[act.id]?.trim() ? '#fff' : 'var(--text-muted)'} />
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ─── Detalhe do atleta ─────────────────────────────────────────
 function AthleteDetail({ athlete: init, coaches, onBack, onRefresh }) {
   const [athlete, setAthlete] = useState(init)
@@ -804,6 +987,17 @@ function AthleteDetail({ athlete: init, coaches, onBack, onRefresh }) {
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [coachEmail, setCoachEmail] = useState('')
+  const [coachName, setCoachName] = useState('Treinador')
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user?.email) setCoachEmail(data.user.email)
+    })
+    supabase.from('coaches').select('name').limit(1).single().then(({ data }) => {
+      if (data?.name) setCoachName(data.name)
+    })
+  }, [])
 
   async function refresh() {
     const { data } = await supabase.from('athletes').select('*').eq('id', init.id).single()
@@ -823,6 +1017,7 @@ function AthleteDetail({ athlete: init, coaches, onBack, onRefresh }) {
 
   const TABS = [
     { id: 'perfil', label: 'Perfil', icon: <User size={13} /> },
+    { id: 'atividades', label: 'Atividades', icon: <Activity size={13} /> },
     { id: 'medalhas', label: 'Medalhas', icon: <Medal size={13} /> },
     { id: 'corridas', label: 'Corridas', icon: <Calendar size={13} /> },
     { id: 'plano', label: 'Ver plano', icon: <ClipboardList size={13} /> },
@@ -939,6 +1134,7 @@ function AthleteDetail({ athlete: init, coaches, onBack, onRefresh }) {
           </div>
         )
       })()}
+      {tab === 'atividades' && <ActivitiesTab athlete={athlete} coachName={coachName} coachEmail={coachEmail} />}
       {tab === 'medalhas' && <MedalsTab athlete={athlete} />}
       {tab === 'corridas' && <RacesTab athlete={athlete} />}
       {tab === 'plano' && <AthletePlanView athlete={athlete} />}
