@@ -74,3 +74,44 @@ export function escalaoColor(escalao) {
   const key = Object.keys(ESCALAO_COLORS).find(k => escalao.startsWith(k))
   return key ? ESCALAO_COLORS[key] : 'var(--text-muted)'
 }
+
+/**
+ * Formata tempo em segundos para exibição por distância
+ * 100m/200m/400m → SS.cs   ex: 11.42s
+ * 800m/1500m/3000m → M:SS.cs   ex: 2:01.50
+ * 5km+ → MM:SS   ex: 35:40
+ */
+export function formatTime(seconds, distance) {
+  if (!seconds) return '—'
+  const s = Number(seconds)
+  if (['100m','200m','400m'].includes(distance)) {
+    return s.toFixed(2) + 's'
+  }
+  if (['800m','1500m','3000m'].includes(distance)) {
+    const mins = Math.floor(s / 60)
+    const secs = (s % 60).toFixed(2).padStart(5, '0')
+    return `${mins}:${secs}`
+  }
+  const mins = Math.floor(s / 60)
+  const secs = String(Math.floor(s % 60)).padStart(2, '0')
+  return `${mins}:${secs}`
+}
+
+export const DISTANCES = [
+  '100m','200m','400m','800m','1500m','3000m',
+  '5km','10km','Meia Maratona','Maratona','Corta-Mato','Marcha','Estafetas','Outra',
+]
+
+export const MEDAL_COLORS = {
+  ouro:    { bg: 'rgba(255,214,10,0.15)',   text: '#FFD60A', border: 'rgba(255,214,10,0.4)',   emoji: '🥇' },
+  prata:   { bg: 'rgba(192,192,192,0.15)', text: '#C0C0C0', border: 'rgba(192,192,192,0.4)', emoji: '🥈' },
+  bronze:  { bg: 'rgba(205,127,50,0.15)',  text: '#CD7F32', border: 'rgba(205,127,50,0.4)',  emoji: '🥉' },
+  default: { bg: 'rgba(255,255,255,0.05)', text: 'var(--text-muted)', border: 'var(--border)', emoji: '🏅' },
+}
+
+export function getMedalFromPosition(pos) {
+  if (pos === 1) return 'ouro'
+  if (pos === 2) return 'prata'
+  if (pos === 3) return 'bronze'
+  return null
+}
