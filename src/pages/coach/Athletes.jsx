@@ -280,6 +280,8 @@ function IndividualPlanForm({ athlete, onSaved }) {
   const [saved, setSaved] = useState(false)
   const [addingDay, setAddingDay] = useState(null)
   const [editingKey, setEditingKey] = useState(null) // `${day}:${idx}`
+  const [generatingAI, setGeneratingAI] = useState(false)
+  const [aiError, setAiError] = useState('')
 
   const monday = getMondayOf(addDays(new Date(), weekOffset * 7))
   const weekStart = toYMD(monday)
@@ -310,6 +312,25 @@ function IndividualPlanForm({ athlete, onSaved }) {
   }
   function removeSession(day, idx) {
     setContent(c => ({ ...c, [day]: (c[day] || []).filter((_, i) => i !== idx) }))
+  }
+
+  async function generateWithAI() {
+    setGeneratingAI(true); setAiError('')
+    try {
+      const res = await fetch('/api/generate-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ athlete }),
+      })
+      const data = await res.json()
+      if (data.error) { setAiError(data.error); return }
+      setContent(data.plan)
+      setAddingDay(null); setEditingKey(null)
+    } catch (e) {
+      setAiError('Erro de ligação: ' + e.message)
+    } finally {
+      setGeneratingAI(false)
+    }
   }
 
   async function handleSave() {
@@ -352,6 +373,33 @@ function IndividualPlanForm({ athlete, onSaved }) {
 
       {loading ? <LoadingSpinner /> : (
         <>
+          {/* Gerar com IA */}
+          <div style={{ marginBottom: 16 }}>
+            <button onClick={generateWithAI} disabled={generatingAI}
+              style={{ width: '100%', padding: '12px', borderRadius: 12, border: 'none', cursor: generatingAI ? 'wait' : 'pointer', background: 'linear-gradient(135deg, #1a0a2e 0%, #0a0a1e 100%)', borderColor: '#BF5AF2', outline: '1px solid rgba(191,90,242,0.4)', color: '#BF5AF2', fontWeight: 800, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: generatingAI ? 0.7 : 1 }}>
+              {generatingAI ? (
+                <>
+                  <span style={{ display: 'inline-block', animation: 'spin 0.8s linear infinite', fontSize: 16 }}>⟳</span>
+                  A gerar plano com IA…
+                </>
+              ) : (
+                <>✨ Gerar plano com IA</>
+              )}
+            </button>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: 6 }}>
+              Considera grupo {athlete.group}, {athlete.sex === 'M' ? 'masculino' : 'feminino'}{athlete.pr_10km ? `, PR 10km ${Math.floor(athlete.pr_10km/60)}:${String(athlete.pr_10km%60).padStart(2,'0')}` : ''} · inclui reforço muscular
+            </p>
+            {aiError && <p style={{ color: '#FF453A', fontSize: 12, marginTop: 6, textAlign: 'center' }}>{aiError}</p>}
+          </div>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+          {/* Separator */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>OU EDITA MANUALMENTE</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          </div>
+
           {/* Days */}
           {DAYS_KEY_ORDER.map((dayKey, i) => {
             const sessions = content[dayKey] || []
