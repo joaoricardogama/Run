@@ -16,7 +16,7 @@ const StravaRegisterCallback = lazy(() => import('./pages/StravaRegisterCallback
 const MyPlan        = lazy(() => import('./pages/athlete/MyPlan'))
 const MyRaces       = lazy(() => import('./pages/athlete/MyRaces'))
 const MyResults     = lazy(() => import('./pages/athlete/MyResults'))
-const AthleteProfile = lazy(() => import('./pages/AthleteProfile'))
+const AthleteProfile = lazy(() => import('./pages/athlete/MyProfile'))
 const CoachLayout   = lazy(() => import('./pages/coach/CoachLayout'))
 const Athletes      = lazy(() => import('./pages/coach/Athletes'))
 const GeneralPlan   = lazy(() => import('./pages/coach/GeneralPlan'))
