@@ -396,63 +396,104 @@ function ActivityCard({ activity, athlete, authorName, onClick }) {
 export default function ActivityFeed({ athlete, limit = 3 }) {
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState(null)
   const navigate = useNavigate()
 
   useEffect(() => {
     if (!athlete?.id) return
     async function load() {
-      const since = new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0]
-      const { data } = await supabase
-        .from('training_completions')
-        .select('*')
-        .eq('athlete_id', athlete.id)
-        .gte('date', since)
-        .order('date', { ascending: false })
-        .limit(limit)
+      setLoading(true)
+      setFetchError(null)
+      try {
+        const since = new Date(Date.now() - 365 * 86400000).toISOString().split('T')[0]
+        const { data, error } = await supabase
+          .from('training_completions')
+          .select('*')
+          .eq('athlete_id', athlete.id)
+          .gte('date', since)
+          .order('date', { ascending: false })
+          .limit(limit)
 
-      if (!data?.length) { setActivities([]); setLoading(false); return }
+        if (error) { setFetchError(error.message); setLoading(false); return }
+        if (!data?.length) { setActivities([]); setLoading(false); return }
 
-      const ids = data.map(a => a.id)
-      const { data: allComments } = await supabase
-        .from('training_comments')
-        .select('*')
-        .in('completion_id', ids)
-        .order('created_at')
+        const ids = data.map(a => a.id)
+        const { data: allComments } = await supabase
+          .from('training_comments')
+          .select('*')
+          .in('completion_id', ids)
+          .order('created_at')
 
-      const enriched = data.map(act => {
-        const actComments = (allComments || []).filter(c => c.completion_id === act.id)
-        const coachComments = actComments.filter(c => c.author_role === 'coach')
-        return {
-          ...act,
-          _commentCount: actComments.length,
-          _latestCoachComment: coachComments[coachComments.length - 1]?.content || null,
-        }
-      })
+        const enriched = data.map(act => {
+          const actComments = (allComments || []).filter(c => c.completion_id === act.id)
+          const coachComments = actComments.filter(c => c.author_role === 'coach')
+          return {
+            ...act,
+            _commentCount: actComments.length,
+            _latestCoachComment: coachComments[coachComments.length - 1]?.content || null,
+          }
+        })
 
-      setActivities(enriched)
+        setActivities(enriched)
+      } catch (e) {
+        setFetchError(e.message)
+      }
       setLoading(false)
     }
     load()
-  }, [athlete?.id])
+  }, [athlete?.id, limit])
 
-  if (loading || !activities.length) return null
+  const authorName = athlete?.name || athlete?.email?.split('@')[0] || 'Atleta'
 
-  const authorName = athlete.name || athlete.email?.split('@')[0] || 'Atleta'
+  const header = (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+      <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+        ATIVIDADES
+      </p>
+      <button onClick={() => navigate('/atividades')} style={{
+        background: 'none', border: 'none', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', gap: 3,
+        fontSize: 12, fontWeight: 700, color: 'var(--orange)',
+      }}>
+        Ver todas <ChevronRight size={13} />
+      </button>
+    </div>
+  )
+
+  if (loading) return (
+    <div style={{ marginTop: 24 }}>
+      {header}
+      <div style={{ background: 'var(--surface)', borderRadius: 18, border: '1px solid var(--border)', padding: '24px 16px', textAlign: 'center' }}>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>A carregar…</p>
+      </div>
+    </div>
+  )
+
+  if (fetchError) return (
+    <div style={{ marginTop: 24 }}>
+      {header}
+      <div style={{ background: 'rgba(255,69,58,0.08)', borderRadius: 18, border: '1px solid rgba(255,69,58,0.2)', padding: '16px' }}>
+        <p style={{ fontSize: 12, color: '#FF453A', fontWeight: 600 }}>Erro ao carregar atividades: {fetchError}</p>
+      </div>
+    </div>
+  )
+
+  if (!activities.length) return (
+    <div style={{ marginTop: 24 }}>
+      {header}
+      <div style={{ background: 'var(--surface)', borderRadius: 18, border: '1px solid var(--border)', padding: '24px 16px', textAlign: 'center' }}>
+        <p style={{ fontSize: 28, marginBottom: 10 }}>🏃</p>
+        <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>Sem atividades</p>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          Liga o Strava e sincroniza para ver os teus treinos aqui, ou regista um treino manualmente abaixo.
+        </p>
+      </div>
+    </div>
+  )
 
   return (
     <div style={{ marginTop: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-          ATIVIDADES
-        </p>
-        <button onClick={() => navigate('/atividades')} style={{
-          background: 'none', border: 'none', cursor: 'pointer',
-          display: 'flex', alignItems: 'center', gap: 3,
-          fontSize: 12, fontWeight: 700, color: 'var(--orange)',
-        }}>
-          Ver todas <ChevronRight size={13} />
-        </button>
-      </div>
+      {header}
       {activities.map(act => (
         <ActivityCard
           key={act.id}
