@@ -1,12 +1,17 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
 import { Eye, EyeOff, AlertCircle, CheckCircle, Mail, Lock } from 'lucide-react'
 
 export default function Login() {
-  const { signIn } = useAuth()
+  const { signIn, user, loading: authLoading } = useAuth()
   const navigate   = useNavigate()
+
+  // Se já está autenticado, vai directo para o dashboard
+  useEffect(() => {
+    if (!authLoading && user) navigate('/dashboard', { replace: true })
+  }, [user, authLoading])
 
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
@@ -211,14 +216,26 @@ export default function Login() {
               </label>
               <div data-field style={fieldWrap}>
                 <span style={iconWrap}><Lock size={18} /></span>
+                {/* Campo real — type="password" SEMPRE para o browser guardar credenciais */}
                 <input
-                  type={showPass ? 'text' : 'password'}
+                  type="password"
                   name="password" id="password"
                   value={password} onChange={e => setPassword(e.target.value)}
                   required autoComplete="current-password" placeholder="A tua palavra-passe"
-                  style={{ ...inputBase, paddingRight: 52 }}
+                  style={{ ...inputBase, paddingRight: 52, opacity: showPass ? 0 : 1, position: showPass ? 'absolute' : 'relative', pointerEvents: showPass ? 'none' : 'auto' }}
                   onFocus={focusField} onBlur={blurField}
                 />
+                {/* Campo de visualização — type="text", apenas visual */}
+                {showPass && (
+                  <input
+                    type="text"
+                    value={password} onChange={e => setPassword(e.target.value)}
+                    placeholder="A tua palavra-passe"
+                    style={{ ...inputBase, paddingRight: 52 }}
+                    onFocus={focusField} onBlur={blurField}
+                    autoComplete="off"
+                  />
+                )}
                 <button type="button" onClick={() => setShowPass(v => !v)} tabIndex={-1}
                   style={{ position: 'absolute', right: 14, background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.35)', display: 'flex', alignItems: 'center', padding: 4 }}>
                   {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
