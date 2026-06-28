@@ -233,14 +233,10 @@ export default function Login() {
               Criar conta
             </Link>
           </p>
-        </div>
-
-        {/* Dica browser */}
-        {!forgotMode && (
-          <p style={{ marginTop: 32, fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', opacity: 0.6 }}>
+          <p style={{ marginTop: 20, fontSize: 11, color: 'var(--text-muted)', opacity: 0.6 }}>
             O teu browser pode guardar a palavra-passe automaticamente
           </p>
-        )}
+        </div>}
       </div>
     </div>
   )
