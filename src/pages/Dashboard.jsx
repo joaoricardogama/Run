@@ -346,6 +346,7 @@ export default function Dashboard() {
           elevation_m: act.total_elevation_gain ? Math.round(act.total_elevation_gain) : null,
           pace_avg: paceSecPerKm,
           hr_avg: act.average_heartrate ? Math.round(act.average_heartrate) : null,
+          map_polyline: act.map?.summary_polyline || null,
         }
         const { data: existing } = await supabase.from('training_completions')
           .select('id,confirmed_by_strava').eq('athlete_id', athlete.id)
