@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom'
-import { Home, Calendar, Trophy, User, ClipboardList } from 'lucide-react'
+import { Home, Activity, Users, Flag, User } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 
 export default function BottomNav() {
@@ -9,11 +9,11 @@ export default function BottomNav() {
   if (!user || isCoach) return null
 
   const links = [
-    { to: '/dashboard',  icon: Home,          label: 'Início' },
-    { to: '/plano',      icon: ClipboardList,  label: 'Plano' },
-    { to: '/corridas',   icon: Calendar,       label: 'Corridas' },
-    { to: '/resultados', icon: Trophy,         label: 'Resultados' },
-    { to: '/perfil',     icon: User,           label: 'Perfil' },
+    { to: '/dashboard',   icon: Home,     label: 'Início' },
+    { to: '/atividades',  icon: Activity, label: 'Atividades' },
+    { to: '/comunidade',  icon: Users,    label: 'Clube' },
+    { to: '/corridas',    icon: Flag,     label: 'Provas' },
+    { to: '/perfil',      icon: User,     label: 'Perfil' },
   ]
 
   return (

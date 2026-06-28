@@ -142,8 +142,7 @@ function CoachDashboard({ navigate, signOut }) {
       <aside className="coach-sidebar" style={{ background: 'var(--surface)', borderRight: '1px solid var(--border)', flexDirection: 'column' }}>
         <div className="coach-sidebar-inner">
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ fontWeight: 900, fontSize: 18, letterSpacing: '-0.03em' }}>H<span style={{ color: 'var(--heh-green)' }}>é</span>H</span>
-            <span style={{ color: 'var(--heh-green)', fontSize: 8 }}>✦</span>
+            <span style={{ fontWeight: 900, fontSize: 18, letterSpacing: '-0.03em', color: 'var(--text)' }}>Run<span style={{ color: 'var(--heh-green)' }}>Tejo</span></span>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button onClick={() => navigate('/coach/atletas')} style={{ padding: '8px 14px', borderRadius: 10, background: 'rgba(184,255,0,0.10)', border: 'none', cursor: 'pointer', color: 'var(--heh-green)', fontWeight: 700, fontSize: 13 }}>Atletas</button>
@@ -152,7 +151,7 @@ function CoachDashboard({ navigate, signOut }) {
         </div>
         <div className="coach-sidebar-meta" style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', borderTop: '1px solid var(--border)' }}>
           <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)' }}>Treinador</p>
-          <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>HéH Focus</p>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>RunTejo Coaching</p>
         </div>
         <nav className="coach-sidebar-nav" style={{ padding: '12px', flex: 1 }}>
           <button onClick={() => navigate('/coach/atletas')} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: 'rgba(184,255,0,0.10)', border: 'none', cursor: 'pointer', color: 'var(--heh-green)', fontWeight: 700, fontSize: 13 }}>
@@ -412,10 +411,9 @@ export default function Dashboard() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ fontWeight: 900, fontSize: 16, letterSpacing: '-0.03em' }}>
-              H<span style={{ color: 'var(--heh-green)' }}>é</span>H
+            <span style={{ fontWeight: 900, fontSize: 16, letterSpacing: '-0.03em', color: 'var(--text)' }}>
+              Run<span style={{ color: 'var(--heh-green)' }}>Tejo</span>
             </span>
-            <span style={{ color: 'var(--heh-green)', fontSize: 7 }}>✦</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {/* Streak pill */}
@@ -570,32 +568,35 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ── Register workout ── */}
-        {!todayEntry ? (
-          <div className="dash-section" style={{ marginTop: 20 }}>
-            <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 12 }}>
-              REGISTAR TREINO
-              {streak >= 2 && <span style={{ marginLeft: 8, color: streakColor, fontSize: 10 }}>· +{streak >= 6 ? 15 : 5} pts streak bónus</span>}
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-              {WORKOUT_TYPES.map(({ type, label, emoji, grad, accent, points }) => (
-                <button key={type} className="workout-tile"
-                  onClick={() => markTodayDone(type)}
-                  disabled={marking}
-                  style={{ background: grad, border: `1px solid ${accent}33`, borderRadius: 14, padding: '16px 14px', textAlign: 'left', opacity: marking && markType !== type ? 0.5 : 1 }}>
-                  <div style={{ fontSize: 24, marginBottom: 8 }}>{emoji}</div>
-                  <p style={{ fontSize: 14, fontWeight: 800, color: '#fff', marginBottom: 2 }}>{label}</p>
-                  <p style={{ fontSize: 11, color: accent, fontWeight: 700 }}>+{points} pts</p>
-                </button>
-              ))}
-            </div>
-            {/* Screenshot upload */}
+        {/* ── Atalhos rápidos ── */}
+        <div className="dash-section" style={{ marginTop: 20 }}>
+          <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 12 }}>ACESSO RÁPIDO</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {[
+              { emoji: '🏃', label: 'Atividades', sub: 'Histórico de treinos', to: '/atividades', accent: '#B8FF00', bg: 'rgba(184,255,0,0.07)' },
+              { emoji: '📅', label: 'Inscrever em Prova', sub: 'Calendário de corridas', to: '/corridas', accent: '#0A84FF', bg: 'rgba(10,132,255,0.07)' },
+              { emoji: '💬', label: 'Feedback', sub: 'Mensagens do treinador', to: '/atividades', accent: '#5E5CE6', bg: 'rgba(94,92,230,0.07)' },
+              { emoji: '📊', label: 'Plano da Semana', sub: 'Ver treinos planeados', to: '/plano', accent: '#FC4C02', bg: 'rgba(252,76,2,0.07)' },
+            ].map(({ emoji, label, sub, to, accent, bg }) => (
+              <button key={to + label} onClick={() => navigate(to)}
+                style={{ background: bg, border: `1px solid ${accent}22`, borderRadius: 16, padding: '16px 14px', textAlign: 'left', cursor: 'pointer' }}>
+                <div style={{ fontSize: 26, marginBottom: 8, lineHeight: 1 }}>{emoji}</div>
+                <p style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', marginBottom: 3, lineHeight: 1.2 }}>{label}</p>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>{sub}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Screenshot upload (confirmar treino sem Strava) ── */}
+        {!stravaLinked && (
+          <div className="dash-section" style={{ marginTop: 12 }}>
             <div style={{ background: 'var(--surface)', borderRadius: 14, border: '1px solid var(--border)', overflow: 'hidden' }}>
               <button onClick={() => setShowUpload(v => !v)}
                 style={{ width: '100%', padding: '14px 18px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text)' }}>
                 <span style={{ fontSize: 20 }}>📷</span>
                 <div style={{ flex: 1, textAlign: 'left' }}>
-                  <p style={{ fontSize: 14, fontWeight: 700 }}>Confirmar com screenshot</p>
+                  <p style={{ fontSize: 14, fontWeight: 700 }}>Confirmar treino com screenshot</p>
                   <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Garmin · Apple Watch · Polar</p>
                 </div>
                 <span style={{ fontSize: 18, color: 'var(--text-muted)' }}>{showUpload ? '−' : '+'}</span>
@@ -605,16 +606,6 @@ export default function Dashboard() {
                   <WorkoutUpload athlete={athlete} date={today} onComplete={() => { loadAthleteData(); setShowUpload(false) }} />
                 </div>
               )}
-            </div>
-          </div>
-        ) : (
-          <div className="dash-section" style={{ marginTop: 20 }}>
-            <div style={{ background: 'var(--surface)', borderRadius: 14, padding: '14px 18px', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Quer registar mais um treino?</span>
-              <button onClick={() => setWeekCompletions(c => c.filter(x => x.date !== today))}
-                style={{ fontSize: 12, fontWeight: 700, color: 'var(--heh-green)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                + Adicionar
-              </button>
             </div>
           </div>
         )}
