@@ -681,4 +681,25 @@ export default function Dashboard() {
               {ranking.slice(0, 5).map((a, i) => (
                 <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: i < Math.min(ranking.length, 5) - 1 ? '1px solid var(--border)' : 'none' }}>
                   <span style={{ fontWeight: 900, fontSize: 15, width: 22, textAlign: 'center', color: i === 0 ? '#FFD60A' : i === 1 ? '#C0C0C0' : i === 2 ? '#CD7F32' : 'var(--text-muted)' }}>{i + 1}</span>
-                  <div style={{ width: 32, height: 32, borderRadius: 8, background: a.isMe ? 'rgba(184,255,0,0.15)' : 'var(--surfa
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: a.isMe ? 'rgba(184,255,0,0.15)' : 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, color: a.isMe ? 'var(--heh-green)' : 'var(--text-muted)', border: a.isMe ? '1px solid rgba(184,255,0,0.3)' : 'none' }}>
+                    {a.name.slice(0, 2).toUpperCase()}
+                  </div>
+                  <span style={{ flex: 1, fontSize: 14, fontWeight: a.isMe ? 800 : 500, color: a.isMe ? 'var(--heh-green)' : 'var(--text)' }}>
+                    {a.name.split(' ')[0]}{a.isMe ? ' (tu)' : ''}
+                  </span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)' }}>{a.points} <span style={{ fontSize: 10 }}>pts</span></span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <button onClick={async () => { await signOut(); navigate('/login') }}
+          style={{ width: '100%', marginTop: 20, padding: '13px', borderRadius: 14, fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', background: 'var(--surface)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+          Sair
+        </button>
+      </div>
+
+    </div>
+  )
+}
