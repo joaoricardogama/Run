@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { Eye, EyeOff, AlertCircle } from 'lucide-react'
+import { supabase } from '../lib/supabase'
+import { Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react'
 
 export default function Login() {
   const { signIn } = useAuth()
@@ -11,6 +12,22 @@ export default function Login() {
   const [showPass, setShowPass] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  // Recuperar palavra-passe
+  const [forgotMode, setForgotMode] = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetSent, setResetSent] = useState(false)
+  const [resetLoading, setResetLoading] = useState(false)
+
+  async function handleReset(e) {
+    e.preventDefault()
+    setResetLoading(true)
+    await supabase.auth.resetPasswordForEmail(resetEmail, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+    setResetSent(true)
+    setResetLoading(false)
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -61,7 +78,57 @@ export default function Login() {
           </p>
         </div>
 
-        {/* Form */}
+        {/* Modo recuperar password */}
+        {forgotMode ? (
+          <div style={{ width: '100%' }}>
+            {resetSent ? (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(52,199,89,0.12)', border: '1px solid rgba(52,199,89,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                  <CheckCircle size={28} color="#34C759" />
+                </div>
+                <p style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', marginBottom: 8 }}>Email enviado!</p>
+                <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 24, lineHeight: 1.5 }}>
+                  Verifica a caixa de entrada de <strong style={{ color: 'var(--text)' }}>{resetEmail}</strong> e clica no link para redefinir a palavra-passe.
+                </p>
+                <button onClick={() => { setForgotMode(false); setResetSent(false) }} style={{ fontSize: 14, fontWeight: 700, color: 'var(--orange)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                  ← Voltar ao login
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleReset}>
+                <p style={{ fontSize: 20, fontWeight: 900, color: 'var(--text)', marginBottom: 6 }}>Recuperar palavra-passe</p>
+                <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 24, lineHeight: 1.5 }}>
+                  Introduz o teu email e enviamos um link para redefinires a palavra-passe.
+                </p>
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 8 }}>Email</label>
+                  <input
+                    type="email" name="email" value={resetEmail}
+                    onChange={e => setResetEmail(e.target.value)}
+                    required autoComplete="email" placeholder="o.teu@email.pt"
+                    style={inputStyle}
+                    onFocus={e => e.target.style.borderColor = 'var(--orange)'}
+                    onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                  />
+                </div>
+                <button type="submit" disabled={resetLoading || !resetEmail} style={{
+                  width: '100%', padding: '16px', fontSize: 15, fontWeight: 800, borderRadius: 14, border: 'none',
+                  cursor: resetLoading ? 'wait' : 'pointer',
+                  background: resetLoading || !resetEmail ? 'var(--surface)' : 'var(--orange)',
+                  color: resetLoading || !resetEmail ? 'var(--text-muted)' : '#080808',
+                  marginBottom: 16,
+                }}>
+                  {resetLoading ? 'A enviar…' : 'Enviar link de recuperação'}
+                </button>
+                <button type="button" onClick={() => setForgotMode(false)} style={{ width: '100%', fontSize: 14, fontWeight: 700, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                  ← Voltar ao login
+                </button>
+              </form>
+            )}
+          </div>
+        ) : (
+
+        /* Form */
         <form
           onSubmit={handleSubmit}
           style={{ width: '100%' }}
@@ -132,6 +199,14 @@ export default function Login() {
             </div>
           )}
 
+          {/* Esqueceste a palavra-passe */}
+          <div style={{ textAlign: 'right', marginBottom: 20, marginTop: -12 }}>
+            <button type="button" onClick={() => { setForgotMode(true); setResetEmail(email) }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--text-muted)' }}>
+              Esqueceste a palavra-passe?
+            </button>
+          </div>
+
           {/* Botão */}
           <button
             type="submit"
@@ -149,8 +224,11 @@ export default function Login() {
           </button>
         </form>
 
+        </form>
+        )} {/* fim forgotMode */}
+
         {/* Links */}
-        <div style={{ marginTop: 28, textAlign: 'center' }}>
+        {!forgotMode && <div style={{ marginTop: 28, textAlign: 'center' }}>
           <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>
             Ainda não tens conta?{' '}
             <Link to="/registo" style={{ color: 'var(--orange)', fontWeight: 800, textDecoration: 'none' }}>
@@ -160,9 +238,11 @@ export default function Login() {
         </div>
 
         {/* Dica browser */}
-        <p style={{ marginTop: 32, fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', opacity: 0.6 }}>
-          O teu browser pode guardar a palavra-passe automaticamente
-        </p>
+        {!forgotMode && (
+          <p style={{ marginTop: 32, fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', opacity: 0.6 }}>
+            O teu browser pode guardar a palavra-passe automaticamente
+          </p>
+        )}
       </div>
     </div>
   )

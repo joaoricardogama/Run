@@ -9,6 +9,7 @@ import LoadingSpinner from './components/LoadingSpinner'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import ResetPassword from './pages/ResetPassword'
 
 const Dashboard       = lazy(() => import('./pages/Dashboard'))
 const StravaCallback         = lazy(() => import('./pages/StravaCallback'))
@@ -51,7 +52,8 @@ export default function App() {
             {/* Página inicial = landing */}
             <Route path="/"        element={<Landing />} />
             <Route path="/login"   element={<Login />} />
-            <Route path="/registo" element={<Register />} />
+            <Route path="/registo"         element={<Register />} />
+            <Route path="/reset-password"  element={<ResetPassword />} />
 
             {/* Dashboard pós-login (atleta e coach) */}
             <Route path="/dashboard" element={
