@@ -532,6 +532,9 @@ export default function Dashboard() {
 
       <div style={{ maxWidth: 520, margin: '0 auto', padding: '0 16px' }}>
 
+        {/* ── Último treino ── */}
+        <ActivityFeed athlete={athlete} limit={1} />
+
         {/* ── Badges ── */}
         {earnedBadges.length > 0 && (
           <div className="dash-section" style={{ marginTop: 20 }}>
@@ -667,9 +670,6 @@ export default function Dashboard() {
             )}
           </div>
         </div>
-
-        {/* ── Feed de Atividades ── */}
-        <ActivityFeed athlete={athlete} limit={1} />
 
         {/* ── Ranking ── */}
         {ranking.length > 1 && (
