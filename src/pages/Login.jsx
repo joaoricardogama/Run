@@ -223,8 +223,6 @@ export default function Login() {
             {loading ? 'A entrar…' : 'Entrar'}
           </button>
         </form>
-
-        </form>
         )} {/* fim forgotMode */}
 
         {/* Links */}
