@@ -700,6 +700,7 @@ export default function Dashboard() {
         </button>
       </div>
 
+      <BottomNav />
     </div>
   )
 }
