@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { MessageCircle, Send, ChevronDown, ChevronUp, Heart, Zap, Clock, TrendingUp, MapPin } from 'lucide-react'
+import { MessageCircle, Send, ChevronDown, ChevronUp, ChevronRight } from 'lucide-react'
 
 // ── Strava polyline decoder ───────────────────────────────────
 function decodePolyline(str) {
@@ -157,7 +158,7 @@ function Stat({ icon, label, value, unit, color = 'var(--text)' }) {
 }
 
 // ── Activity card ─────────────────────────────────────────────
-function ActivityCard({ activity, athlete, authorName }) {
+function ActivityCard({ activity, athlete, authorName, onClick }) {
   const [open, setOpen] = useState(false)
   const [comments, setComments] = useState([])
   const [loadingC, setLoadingC] = useState(false)
@@ -207,12 +208,13 @@ function ActivityCard({ activity, athlete, authorName }) {
       border: '1px solid var(--border)',
       overflow: 'hidden',
       marginBottom: 14,
+      cursor: onClick ? 'pointer' : 'default',
     }}>
       {/* Mapa da rota */}
-      {hasMap && <RoutePreview polyline={activity.map_polyline} />}
+      {hasMap && <div onClick={onClick}><RoutePreview polyline={activity.map_polyline} /></div>}
 
       {/* Header */}
-      <div style={{ padding: '14px 16px 0' }}>
+      <div style={{ padding: '14px 16px 0' }} onClick={onClick}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12 }}>
           {/* Ícone do desporto */}
           <div style={{
@@ -391,21 +393,22 @@ function ActivityCard({ activity, athlete, authorName }) {
 }
 
 // ── Feed principal ────────────────────────────────────────────
-export default function ActivityFeed({ athlete }) {
+export default function ActivityFeed({ athlete, limit = 3 }) {
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
+  const navigate = useNavigate()
 
   useEffect(() => {
     if (!athlete?.id) return
     async function load() {
-      const since = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
+      const since = new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0]
       const { data } = await supabase
         .from('training_completions')
         .select('*')
         .eq('athlete_id', athlete.id)
         .gte('date', since)
         .order('date', { ascending: false })
-        .limit(20)
+        .limit(limit)
 
       if (!data?.length) { setActivities([]); setLoading(false); return }
 
@@ -438,15 +441,25 @@ export default function ActivityFeed({ athlete }) {
 
   return (
     <div style={{ marginTop: 24 }}>
-      <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 14 }}>
-        ATIVIDADES
-      </p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+          ATIVIDADES
+        </p>
+        <button onClick={() => navigate('/atividades')} style={{
+          background: 'none', border: 'none', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: 3,
+          fontSize: 12, fontWeight: 700, color: 'var(--orange)',
+        }}>
+          Ver todas <ChevronRight size={13} />
+        </button>
+      </div>
       {activities.map(act => (
         <ActivityCard
           key={act.id}
           activity={act}
           athlete={athlete}
           authorName={authorName}
+          onClick={() => navigate(`/atividades/${act.id}`)}
         />
       ))}
     </div>

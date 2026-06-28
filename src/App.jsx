@@ -17,6 +17,9 @@ const MyPlan        = lazy(() => import('./pages/athlete/MyPlan'))
 const MyRaces       = lazy(() => import('./pages/athlete/MyRaces'))
 const MyResults     = lazy(() => import('./pages/athlete/MyResults'))
 const AthleteProfile = lazy(() => import('./pages/athlete/MyProfile'))
+const Community     = lazy(() => import('./pages/athlete/Community'))
+const Activities    = lazy(() => import('./pages/athlete/Activities'))
+const ActivityDetail = lazy(() => import('./pages/athlete/ActivityDetail'))
 const CoachLayout   = lazy(() => import('./pages/coach/CoachLayout'))
 const Athletes      = lazy(() => import('./pages/coach/Athletes'))
 const GeneralPlan   = lazy(() => import('./pages/coach/GeneralPlan'))
@@ -79,6 +82,9 @@ export default function App() {
             <Route path="/plano"      element={<AthleteShell><MyPlan /></AthleteShell>} />
             <Route path="/corridas"   element={<AthleteShell><MyRaces /></AthleteShell>} />
             <Route path="/resultados" element={<AthleteShell><MyResults /></AthleteShell>} />
+            <Route path="/comunidade"        element={<AthleteShell><Community /></AthleteShell>} />
+            <Route path="/atividades"        element={<AthleteShell><Activities /></AthleteShell>} />
+            <Route path="/atividades/:id"    element={<AthleteShell><ActivityDetail /></AthleteShell>} />
             <Route path="/perfil"     element={<AthleteShell><AthleteProfile /></AthleteShell>} />
 
             {/* Área do coach */}

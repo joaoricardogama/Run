@@ -669,7 +669,7 @@ export default function Dashboard() {
         </div>
 
         {/* ── Feed de Atividades ── */}
-        <ActivityFeed athlete={athlete} />
+        <ActivityFeed athlete={athlete} limit={1} />
 
         {/* ── Ranking ── */}
         {ranking.length > 1 && (
