@@ -8,6 +8,7 @@ import LoadingSpinner from './components/LoadingSpinner'
 
 import Home from './pages/Home'
 import Login from './pages/Login'
+import AnaIsabel from './pages/AnaIsabel'
 
 const MyPlan        = lazy(() => import('./pages/athlete/MyPlan'))
 const MyRaces       = lazy(() => import('./pages/athlete/MyRaces'))
@@ -50,6 +51,7 @@ export default function App() {
         <Suspense fallback={<LoadingSpinner />}>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/ana-isabel" element={<AnaIsabel />} />
 
             <Route path="/" element={<PublicShell><Home /></PublicShell>} />
 
